@@ -1,4 +1,4 @@
-package inmemeorycache
+package cache
 
 import (
 	"errors"
@@ -27,7 +27,7 @@ func NewCacheWithCapacity[T any](capacity, cleanupInterval int16, done chan int)
 		done:          done,
 		cleanupTicker: timer,
 	}
-	cache.cleanUp()
+	go cache.cleanUp()
 	return cache
 }
 
@@ -38,7 +38,7 @@ func NewCache[T any](cleanupInterval int16, done chan int) *Cache[T] {
 		done:          done,
 		cleanupTicker: timer,
 	}
-	cache.cleanUp()
+	go cache.cleanUp()
 	return cache
 }
 
@@ -70,15 +70,34 @@ func (c *Cache[T]) cleanUp() {
 }
 
 func (c *Cache[T]) Set(key string, value T, expirationSecond int64) error {
+	expiration := time.Now().Unix() + expirationSecond
 	item := CacheItem[T]{
 		item:       value,
-		expiration: expirationSecond,
+		expiration: expiration,
 	}
 	if int(c.capacity) > 0 && len(c.data) >= int(c.capacity) {
 		return errors.New("cache is full")
 	}
 	c.data[key] = item
 	return nil
+}
+
+func (c *Cache[T]) Add(key string, value T, expirationSecond int64) error {
+	_, ok := c.data[key]
+	if ok {
+		return errors.New("key already exists")
+	} else {
+		expiration := time.Now().Unix() + expirationSecond
+		item := CacheItem[T]{
+			item:       value,
+			expiration: expiration,
+		}
+		if int(c.capacity) > 0 && len(c.data) >= int(c.capacity) {
+			return errors.New("cache is full")
+		}
+		c.data[key] = item
+		return nil
+	}
 }
 
 func (c *Cache[T]) Get(key string) (T, error) {
