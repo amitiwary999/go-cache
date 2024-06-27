@@ -2,6 +2,7 @@ package cache
 
 import (
 	"container/ring"
+	"errors"
 )
 
 type cacheRing[T any] struct {
@@ -50,4 +51,16 @@ func (c *cacheRing[T]) Set(key string, value T) {
 		c.data[key] = c.hand
 	}
 	c.hand = c.hand.Next()
+}
+
+func (c *cacheRing[T]) Get(key string) (T, error) {
+	var itemVal T
+	ringVal, ok := c.data[key]
+	if ok {
+		cacheItem := ringVal.Value.(*cacheRingItem[T])
+		cacheItem.reference = 1
+		return cacheItem.item, nil
+	} else {
+		return itemVal, errors.New("key not found")
+	}
 }
