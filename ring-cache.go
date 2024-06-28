@@ -36,7 +36,15 @@ func (c *cacheRing[T]) findReplaceItem() {
 	}
 }
 
-func (c *cacheRing[T]) Set(key string, value T) {
+func (c *cacheRing[T]) Set(key string, value T) error {
+	ringVal, ok := c.data[key]
+	if ok {
+		cacheItem := ringVal.Value.(*cacheRingItem[T])
+		cacheItem.key = key
+		cacheItem.item = value
+		cacheItem.reference = 0
+		return nil
+	}
 	item := &cacheRingItem[T]{
 		key:       key,
 		item:      value,
@@ -51,6 +59,7 @@ func (c *cacheRing[T]) Set(key string, value T) {
 		c.data[key] = c.hand
 	}
 	c.hand = c.hand.Next()
+	return nil
 }
 
 func (c *cacheRing[T]) Get(key string) (T, error) {
