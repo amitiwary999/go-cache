@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -39,4 +40,44 @@ func (c *bigCacheRing) Save(key string, value string) error {
 	}
 	c.offsetMap[key] = offset
 	return nil
+}
+
+func (c *bigCacheRing) Get(key string) (string, error) {
+	itemValue, fetchErr := c.cacheRing.Get(key)
+	if fetchErr == nil {
+		return itemValue, nil
+	} else {
+		offset, ok := c.offsetMap[key]
+		if ok {
+			valueOffset := offset + int64(len(key)) + 1
+			_, fileErr := c.file.Seek(valueOffset, 0)
+			if fileErr != nil {
+				return "", fileErr
+			}
+			buffer := make([]byte, 1)
+			var content []byte
+
+			for {
+				n, err := c.file.Read(buffer)
+				if err != nil {
+					return "", err
+				}
+
+				if n == 0 {
+					break
+				}
+
+				if buffer[0] == '\n' {
+					break
+				}
+
+				content = append(content, buffer[0])
+			}
+			value := string(content)
+			c.cacheRing.Set(key, value)
+			return string(content), nil
+		} else {
+			return "", errors.New("key not found")
+		}
+	}
 }
