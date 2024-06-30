@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/bits-and-blooms/bloom/v3"
 )
 
 type bigCacheRing struct {
-	file      *os.File
-	offsetMap map[string]int64
-	cacheRing *cacheRing[string]
+	file        *os.File
+	offsetMap   map[string]int64
+	cacheRing   *cacheRing[string]
+	bloomFilter *bloom.BloomFilter
 }
 
 func NewBigCacheRing() (*bigCacheRing, error) {
@@ -20,10 +23,12 @@ func NewBigCacheRing() (*bigCacheRing, error) {
 	}
 	cacheRing := NewCacheRing[string](1000)
 	offsetMap := make(map[string]int64)
+	filter := bloom.NewWithEstimates(1000000, 0.01)
 	return &bigCacheRing{
-		file:      file,
-		offsetMap: offsetMap,
-		cacheRing: cacheRing,
+		file:        file,
+		offsetMap:   offsetMap,
+		cacheRing:   cacheRing,
+		bloomFilter: filter,
 	}, nil
 }
 
@@ -39,10 +44,14 @@ func (c *bigCacheRing) Save(key string, value string) error {
 		return saveErr
 	}
 	c.offsetMap[key] = offset
+	c.bloomFilter.Add([]byte(key))
 	return nil
 }
 
 func (c *bigCacheRing) Get(key string) (string, error) {
+	if !c.bloomFilter.Test([]byte(key)) {
+		return "", errors.New("key not found")
+	}
 	itemValue, fetchErr := c.cacheRing.Get(key)
 	if fetchErr == nil {
 		return itemValue, nil
