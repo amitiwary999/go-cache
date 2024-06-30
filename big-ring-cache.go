@@ -38,7 +38,7 @@ func (c *bigCacheRing) Save(key string, value string) error {
 		fmt.Printf("big cache error seeking the file")
 		return err
 	}
-	fileData := key + " " + value
+	fileData := key + " " + value + "\n"
 	_, saveErr := c.file.WriteString(fileData)
 	if saveErr != nil {
 		return saveErr
