@@ -16,12 +16,12 @@ type bigCacheRing struct {
 	bloomFilter *bloom.BloomFilter
 }
 
-func NewBigCacheRing() (*bigCacheRing, error) {
+func NewBigCacheRing(bufferSize int32) (*bigCacheRing, error) {
 	file, err := os.OpenFile("big-cache-ring-data.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return nil, err
 	}
-	cacheRing := NewCacheRing[string](1000)
+	cacheRing := NewCacheRing[string](bufferSize)
 	offsetMap := make(map[string]int64)
 	filter := bloom.NewWithEstimates(1000000, 0.01)
 	return &bigCacheRing{
