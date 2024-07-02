@@ -73,3 +73,17 @@ func (c *cacheRing[T]) Get(key string) (T, error) {
 		return itemVal, errors.New("key not found")
 	}
 }
+
+func (c *cacheRing[T]) Delete(key string) error {
+	ringVal, ok := c.data[key]
+	if ok {
+		prevHand := ringVal.Prev()
+		nextHand := ringVal.Next()
+		prevHand.Link(nextHand)
+		ringVal.Value = nil
+		delete(c.data, key)
+		return nil
+	} else {
+		return errors.New("key not found")
+	}
+}
