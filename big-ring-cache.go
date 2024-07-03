@@ -90,3 +90,8 @@ func (c *bigCacheRing) Get(key string) (string, error) {
 		}
 	}
 }
+
+func (c *bigCacheRing) Delete(key string) {
+	delete(c.cacheRing.data, key)
+	delete(c.offsetMap, key)
+}
