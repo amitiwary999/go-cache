@@ -31,5 +31,19 @@ func TestBigRingCache(t *testing.T) {
 		} else if value2 != "value2" {
 			t.Fatalf("fetch wrong value for key key2")
 		}
+		bch.Get("key3")
+		bch.Get("key4")
+		bch.Get("key5")
+		value2, err = bch.Get("key2")
+		if err != nil {
+			t.Fatalf("error fetch key2 %v \n", err)
+		} else if value2 != "value2" {
+			t.Fatalf("fetch wrong value for key key2")
+		}
+		bch.Delete("key3")
+		_, err3 := bch.Get("key3")
+		if err3 == nil || err3.Error() != "key not found" {
+			t.Fatalf("key3 is deleted so no value should be present")
+		}
 	}
 }

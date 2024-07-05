@@ -17,7 +17,12 @@ type bigCacheRing struct {
 }
 
 func NewBigCacheRing(bufferSize int32) (*bigCacheRing, error) {
-	file, err := os.OpenFile("big-cache-ring-data.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, errors.New("failed to create file")
+	}
+	fileName := fmt.Sprintf("%v/%v", homeDir, "big-cache-ring-data.txt")
+	file, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return nil, err
 	}
