@@ -3,15 +3,17 @@ package cache
 import (
 	"container/ring"
 	"errors"
+
+	xxhash "github.com/cespare/xxhash/v2"
 )
 
 type cacheRing[T any] struct {
-	data map[string]*ring.Ring
+	data map[uint64]*ring.Ring
 	hand *ring.Ring
 }
 
 type cacheRingItem[T any] struct {
-	key       string
+	key       uint64
 	item      T
 	reference int8
 }
@@ -19,7 +21,7 @@ type cacheRingItem[T any] struct {
 func NewCacheRing[T any](capacity int32) *cacheRing[T] {
 	r := ring.New(int(capacity))
 	return &cacheRing[T]{
-		data: make(map[string]*ring.Ring),
+		data: make(map[uint64]*ring.Ring),
 		hand: r,
 	}
 }
@@ -37,34 +39,38 @@ func (c *cacheRing[T]) findReplaceItem() {
 }
 
 func (c *cacheRing[T]) Set(key string, value T) error {
-	ringVal, ok := c.data[key]
+	keyByte := []byte(key)
+	keyInt := xxhash.Sum64(keyByte)
+	ringVal, ok := c.data[keyInt]
 	if ok {
 		cacheItem := ringVal.Value.(*cacheRingItem[T])
-		cacheItem.key = key
+		cacheItem.key = keyInt
 		cacheItem.item = value
 		cacheItem.reference = 0
 		return nil
 	}
 	item := &cacheRingItem[T]{
-		key:       key,
+		key:       keyInt,
 		item:      value,
 		reference: 0,
 	}
 	if c.hand.Value == nil {
 		c.hand.Value = item
-		c.data[key] = c.hand
+		c.data[keyInt] = c.hand
 	} else {
 		c.findReplaceItem()
 		c.hand.Value = item
-		c.data[key] = c.hand
+		c.data[keyInt] = c.hand
 	}
 	c.hand = c.hand.Next()
 	return nil
 }
 
 func (c *cacheRing[T]) Get(key string) (T, error) {
+	keyByte := []byte(key)
+	keyInt := xxhash.Sum64(keyByte)
 	var itemVal T
-	ringVal, ok := c.data[key]
+	ringVal, ok := c.data[keyInt]
 	if ok {
 		cacheItem := ringVal.Value.(*cacheRingItem[T])
 		cacheItem.reference = 1
@@ -75,13 +81,15 @@ func (c *cacheRing[T]) Get(key string) (T, error) {
 }
 
 func (c *cacheRing[T]) Delete(key string) error {
-	ringVal, ok := c.data[key]
+	keyByte := []byte(key)
+	keyInt := xxhash.Sum64(keyByte)
+	ringVal, ok := c.data[keyInt]
 	if ok {
 		prevHand := ringVal.Prev()
 		nextHand := ringVal.Next()
 		prevHand.Link(nextHand)
 		ringVal.Value = nil
-		delete(c.data, key)
+		delete(c.data, keyInt)
 		return nil
 	} else {
 		return errors.New("key not found")

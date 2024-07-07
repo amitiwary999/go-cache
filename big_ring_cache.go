@@ -7,11 +7,12 @@ import (
 	"os"
 
 	"github.com/bits-and-blooms/bloom/v3"
+	xxhash "github.com/cespare/xxhash/v2"
 )
 
 type bigCacheRing struct {
 	file        *os.File
-	offsetMap   map[string]int64
+	offsetMap   map[uint64]int64
 	cacheRing   *cacheRing[string]
 	bloomFilter *bloom.BloomFilter
 }
@@ -27,7 +28,7 @@ func NewBigCacheRing(bufferSize int32) (*bigCacheRing, error) {
 		return nil, err
 	}
 	cacheRing := NewCacheRing[string](bufferSize)
-	offsetMap := make(map[string]int64)
+	offsetMap := make(map[uint64]int64)
 	filter := bloom.NewWithEstimates(1000000, 0.01)
 	return &bigCacheRing{
 		file:        file,
@@ -38,6 +39,8 @@ func NewBigCacheRing(bufferSize int32) (*bigCacheRing, error) {
 }
 
 func (c *bigCacheRing) Save(key string, value string) error {
+	keyByte := []byte(key)
+	keyInt := xxhash.Sum64(keyByte)
 	offset, err := c.file.Seek(0, io.SeekEnd)
 	if err != nil {
 		fmt.Printf("big cache error seeking the file")
@@ -48,12 +51,14 @@ func (c *bigCacheRing) Save(key string, value string) error {
 	if saveErr != nil {
 		return saveErr
 	}
-	c.offsetMap[key] = offset
+	c.offsetMap[keyInt] = offset
 	c.bloomFilter.Add([]byte(key))
 	return nil
 }
 
 func (c *bigCacheRing) Get(key string) (string, error) {
+	keyByte := []byte(key)
+	keyInt := xxhash.Sum64(keyByte)
 	if !c.bloomFilter.Test([]byte(key)) {
 		return "", errors.New("key not found")
 	}
@@ -61,7 +66,7 @@ func (c *bigCacheRing) Get(key string) (string, error) {
 	if fetchErr == nil {
 		return itemValue, nil
 	} else {
-		offset, ok := c.offsetMap[key]
+		offset, ok := c.offsetMap[keyInt]
 		if ok {
 			valueOffset := offset + int64(len(key)) + 1
 			_, fileErr := c.file.Seek(valueOffset, 0)
@@ -97,6 +102,8 @@ func (c *bigCacheRing) Get(key string) (string, error) {
 }
 
 func (c *bigCacheRing) Delete(key string) {
-	delete(c.cacheRing.data, key)
-	delete(c.offsetMap, key)
+	keyByte := []byte(key)
+	keyInt := xxhash.Sum64(keyByte)
+	delete(c.cacheRing.data, keyInt)
+	delete(c.offsetMap, keyInt)
 }
