@@ -18,3 +18,24 @@ BenchmarkBigCache-10    	       1	2371712709 ns/op	206603024 B/op	 5508174 alloc
 BenchmarkBigCache-10    	       1	2471930375 ns/op	206604184 B/op	 5508217 allocs/op
 
 See the allocation. Suddenly there is lot of allocation and most happening in save where we use map to save the key offset.
+
+Tracking GC pause with the map key type string
+go test -timeout 30m  -bench=.  -benchmem -memprofile memprofile.out -cpuprofile profile.out  -benchtime=2s -count=3
+With a map of strings, GC took: 8.35775ms\ngoos: darwin
+goarch: arm64
+pkg: github.com/amitiwary999/go-cache
+BenchmarkBigCache-10    	       1	2513947625 ns/op	206583752 B/op	 5507991 allocs/op
+BenchmarkBigCache-10    	With a map of strings, GC took: 13.244958ms\n       1	2648101667 ns/op	206521816 B/op	 5507817 allocs/op
+BenchmarkBigCache-10    	With a map of strings, GC took: 12.969667ms\n       1	2680075792 ns/op	206567632 B/op	 5508013 allocs/op
+PASS
+ok  	github.com/amitiwary999/go-cache	7.991s
+
+Tracking GC pause with map key type int
+go test -timeout 30m  -bench=.  -benchmem -memprofile memprofile.out -cpuprofile profile.out  -benchtime=2s -count=3
+With a map of strings, GC took: 1.404083ms\ngoos: darwin
+goarch: arm64
+pkg: github.com/amitiwary999/go-cache
+BenchmarkBigCache-10    	       1	2739409458 ns/op	168656952 B/op	 5578545 allocs/op
+BenchmarkBigCache-10    	With a map of strings, GC took: 1.817875ms\n       1	2623270083 ns/op	168584712 B/op	 5578105 allocs/op
+BenchmarkBigCache-10    	With a map of strings, GC took: 2.818375ms\n       1	2663439166 ns/op	168562432 B/op	 5578132 allocs/op
+PASS
