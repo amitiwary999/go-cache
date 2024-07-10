@@ -1,6 +1,9 @@
 # go-cache
+Save data on machine and fetch fast. Local cache.
+Sometimes we need to save the data in the machine where we want to use that. This makes the fetching data fast. We may want that the data persist even when machine restart or it should not persist.This library has both option.
+ex: coming soon
 
-Benchmark:
+## Benchmark:
 
 JLMP250:go-cache amitt$ go test -timeout 30m  -bench=.  -benchmem -memprofile memprofile.out -cpuprofile profile.out  -benchtime=20s -count=5
 goos: darwin
@@ -19,7 +22,8 @@ BenchmarkBigCache-10    	       1	2471930375 ns/op	206604184 B/op	 5508217 alloc
 
 See the allocation. Suddenly there is lot of allocation and most happening in save where we use map to save the key offset.
 
-Tracking GC pause with the map key type string
+*Tracking GC pause with the map key type string* 
+
 go test -timeout 30m  -bench=.  -benchmem -memprofile memprofile.out -cpuprofile profile.out  -benchtime=2s -count=3
 With a map of strings, GC took: 8.35775ms\ngoos: darwin
 goarch: arm64
@@ -30,7 +34,8 @@ BenchmarkBigCache-10    	With a map of strings, GC took: 12.969667ms\n       1	2
 PASS
 ok  	github.com/amitiwary999/go-cache	7.991s
 
-Tracking GC pause with map key type int
+*Tracking GC pause with map key type int* 
+
 go test -timeout 30m  -bench=.  -benchmem -memprofile memprofile.out -cpuprofile profile.out  -benchtime=2s -count=3
 With a map of strings, GC took: 1.404083ms\ngoos: darwin
 goarch: arm64
