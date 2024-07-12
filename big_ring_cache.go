@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/bits-and-blooms/bloom/v3"
 	xxhash "github.com/cespare/xxhash/v2"
@@ -128,11 +129,20 @@ func splitFunction(data []byte, eof bool) (next int, token []byte, err error) {
 func (c *bigCacheRing) loadFileOffset(done chan int) {
 	scanner := bufio.NewScanner(c.file)
 	scanner.Split(splitFunction)
+	offset := int64(0)
 	for scanner.Scan() {
 		b := scanner.Bytes()
+		splitStrings := strings.Split(string(b), " ")
+		if len(splitStrings) > 0 {
+			keyString := splitStrings[0]
+			keyInt := xxhash.Sum64([]byte(keyString))
+			c.offsetMap[keyInt] = offset
+		}
+		offset += int64(len(b))
 	}
+	done <- 1
 }
 
 func (c *bigCacheRing) LoadFileOffset(done chan int) {
-
+	go c.loadFileOffset(done)
 }
