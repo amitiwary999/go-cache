@@ -111,6 +111,14 @@ func (c *bigCacheRing) Delete(key string) {
 	delete(c.offsetMap, keyInt)
 }
 
+func (c *bigCacheRing) Size(cacheType int) int {
+	if cacheType == 1 {
+		return len(c.offsetMap)
+	} else {
+		return len(c.cacheRing.data)
+	}
+}
+
 func splitFunction(data []byte, eof bool) (next int, token []byte, err error) {
 	if eof && len(data) == 0 {
 		return 0, nil, nil
@@ -137,6 +145,7 @@ func (c *bigCacheRing) loadFileOffset(done chan int) {
 			keyString := splitStrings[0]
 			keyInt := xxhash.Sum64([]byte(keyString))
 			c.offsetMap[keyInt] = offset
+			c.bloomFilter.Add([]byte(keyString))
 		}
 		offset += int64(len(b))
 	}

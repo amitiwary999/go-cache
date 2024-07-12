@@ -7,6 +7,19 @@ import (
 
 func TestBigRingCache(t *testing.T) {
 	bch, initErr := NewBigCacheRing(5)
+	doneCh := make(chan int)
+	bch.LoadFileOffset(doneCh)
+	<-doneCh
+	fileCacheSize := bch.Size(1)
+	t.Logf("already present file cache size %v \n", fileCacheSize)
+	if fileCacheSize > 0 {
+		value1, err := bch.Get("key1")
+		if err != nil {
+			t.Fatalf("error fetch key1 %v \n", err)
+		} else if value1 != "value1" {
+			t.Fatalf("fetch wrong value for key key1")
+		}
+	}
 	if initErr != nil {
 		fmt.Printf("failed to init cache %v \n", initErr)
 	} else {
