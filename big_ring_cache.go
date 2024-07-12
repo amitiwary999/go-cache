@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -106,4 +108,31 @@ func (c *bigCacheRing) Delete(key string) {
 	keyInt := xxhash.Sum64(keyByte)
 	delete(c.cacheRing.data, keyInt)
 	delete(c.offsetMap, keyInt)
+}
+
+func splitFunction(data []byte, eof bool) (next int, token []byte, err error) {
+	if eof && len(data) == 0 {
+		return 0, nil, nil
+	}
+
+	if i := bytes.IndexByte(data, '\n'); i >= 0 {
+		return i + 1, data[0 : i+1], nil
+	}
+
+	if eof {
+		return len(data), data, nil
+	}
+	return 0, nil, nil
+}
+
+func (c *bigCacheRing) loadFileOffset(done chan int) {
+	scanner := bufio.NewScanner(c.file)
+	scanner.Split(splitFunction)
+	for scanner.Scan() {
+		b := scanner.Bytes()
+	}
+}
+
+func (c *bigCacheRing) LoadFileOffset(done chan int) {
+
 }
