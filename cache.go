@@ -7,11 +7,6 @@ import (
 
 var stopTicker chan int
 
-type CacheItem[T any] struct {
-	item       T
-	expiration int64
-}
-
 type Cache[T any] struct {
 	data          map[string]CacheItem[T]
 	done          chan int
