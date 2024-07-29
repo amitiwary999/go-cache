@@ -1,13 +1,18 @@
 package cache
 
-import "github.com/cespare/xxhash/v2"
+import (
+	"errors"
+	"sync"
+	"time"
+)
 
 type cacheItem[T any] struct {
 	item       T
-	expiration int64
+	expiration time.Time
 }
 
 type cacheDataMap[T any] struct {
+	sync.RWMutex
 	dataMap map[uint64]cacheItem[T]
 }
 
@@ -32,7 +37,36 @@ func NewCacheData[T any]() *CacheData[T] {
 	return c
 }
 
-func (c *CacheData[T]) Set(key string, value T) {
-	keyByte := []byte(key)
-	keyInt := xxhash.Sum64(keyByte)
+func (c *CacheData[T]) Set(key uint64, value T, expiration time.Time) {
+	i := key % 256
+	item := cacheItem[T]{
+		item:       value,
+		expiration: expiration,
+	}
+	c.data[i].set(key, item)
+}
+
+func (c *cacheDataMap[T]) set(key uint64, item cacheItem[T]) {
+	c.Lock()
+	defer c.Unlock()
+	c.dataMap[key] = item
+}
+
+func (c *CacheData[T]) Get(key uint64) (T, error) {
+	i := key % 256
+	return c.data[i].get(key)
+}
+
+func (c *cacheDataMap[T]) get(key uint64) (T, error) {
+	var item T
+	c.RLock()
+	defer c.RUnlock()
+	cacheItem, ok := c.dataMap[key]
+	if !ok {
+		return item, errors.New("item not found")
+	}
+	if !cacheItem.expiration.IsZero() && time.Now().After(cacheItem.expiration) {
+		return item, errors.New("item has expired")
+	}
+	return cacheItem.item, nil
 }
