@@ -62,13 +62,13 @@ func (c *bigCacheRing) Save(key string, value string) error {
 func (c *bigCacheRing) Get(key string) (string, error) {
 	keyByte := []byte(key)
 	keyInt := xxhash.Sum64(keyByte)
-	if !c.bloomFilter.Test([]byte(key)) {
-		return "", errors.New("key not found")
-	}
 	itemValue, fetchErr := c.cacheRing.Get(key)
 	if fetchErr == nil {
 		return itemValue, nil
 	} else {
+		if !c.bloomFilter.Test([]byte(key)) {
+			return "", errors.New("key not found")
+		}
 		offset, ok := c.offsetMap[keyInt]
 		if ok {
 			valueOffset := offset + int64(len(key)) + 1
