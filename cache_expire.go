@@ -45,6 +45,24 @@ func (e *expirationData[T]) add(key uint64, expiration time.Time) {
 	bucket[key] = byte(1)
 }
 
+func (e *expirationData[T]) update(key uint64, prevExpiration time.Time, updateExpiration time.Time) {
+	e.Mutex.Lock()
+	defer e.Mutex.Unlock()
+	oldBucketNum := expirationBucketKey(prevExpiration)
+	oldBucket, ok := e.expirationBucket[oldBucketNum]
+	if ok {
+		delete(oldBucket, key)
+	}
+
+	newBucketNum := expirationBucketKey(updateExpiration)
+	newBucket, ok := e.expirationBucket[newBucketNum]
+	if !ok {
+		newBucket = make(itemExpireData)
+		e.expirationBucket[newBucketNum] = newBucket
+	}
+	newBucket[key] = byte(1)
+}
+
 func (e *expirationData[T]) removeExpiredItem(c cacheOp[T]) {
 	removeBucketKey := expirationBucketKey(time.Now()) - 1
 	e.Mutex.Lock()
