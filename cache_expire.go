@@ -8,7 +8,7 @@ import (
 /** I loved this idea of bucket the item according to expiration. I got it while reading the document of Ristretto,
 a very good library for local cache */
 
-type itemExpireData []uint64
+type itemExpireData map[uint64]byte
 
 type expirationData[T any] struct {
 	sync.Mutex
@@ -35,19 +35,23 @@ func (e *expirationData[T]) add(key uint64, expiration time.Time) {
 	}
 
 	bucketNum := expirationBucketKey(expiration)
+	e.Mutex.Lock()
+	defer e.Mutex.Unlock()
 	bucket, ok := e.expirationBucket[bucketNum]
 	if !ok {
-		bucket = make(itemExpireData, 100)
+		bucket = make(itemExpireData)
 		e.expirationBucket[bucketNum] = bucket
 	}
-	bucket = append(bucket, key)
+	bucket[key] = byte(1)
 }
 
-func (e *expirationData[T]) removeExpiredItem(c CacheData[T]) {
+func (e *expirationData[T]) removeExpiredItem(c cacheOp[T]) {
 	removeBucketKey := expirationBucketKey(time.Now()) - 1
+	e.Mutex.Lock()
+	defer e.Mutex.Unlock()
 	bucket, ok := e.expirationBucket[removeBucketKey]
 	if ok {
-		for _, key := range bucket {
+		for key, _ := range bucket {
 			c.Del(key)
 		}
 	}
