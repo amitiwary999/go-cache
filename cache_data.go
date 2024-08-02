@@ -17,7 +17,8 @@ type cacheDataMap[T any] struct {
 }
 
 type CacheData[T any] struct {
-	data []*cacheDataMap[T]
+	data           []*cacheDataMap[T]
+	expirationData *expirationData[T]
 }
 
 func newCacheDataMap[T any]() *cacheDataMap[T] {
@@ -29,7 +30,8 @@ func newCacheDataMap[T any]() *cacheDataMap[T] {
 
 func NewCacheData[T any]() *CacheData[T] {
 	c := &CacheData[T]{
-		data: make([]*cacheDataMap[T], 256),
+		data:           make([]*cacheDataMap[T], 256),
+		expirationData: newExpirationData[T](),
 	}
 	for i := range c.data {
 		c.data[i] = newCacheDataMap[T]()
@@ -69,4 +71,13 @@ func (c *cacheDataMap[T]) get(key uint64) (T, error) {
 		return item, errors.New("item has expired")
 	}
 	return cacheItem.item, nil
+}
+
+func (c *CacheData[T]) Del(key uint64) {
+	i := key % 256
+	c.data[i].del(key)
+}
+
+func (c *cacheDataMap[T]) del(key uint64) {
+	delete(c.dataMap, key)
 }
