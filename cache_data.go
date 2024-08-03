@@ -21,6 +21,13 @@ type CacheData[T any] struct {
 	expirationData *expirationData[T]
 }
 
+type cacheOp[T any] interface {
+	Set(uint64, T, time.Time)
+	Get(uint64) (T, error)
+	Del(uint64)
+	RemoveExpiredItem()
+}
+
 func newCacheDataMap[T any]() *cacheDataMap[T] {
 	c := &cacheDataMap[T]{
 		dataMap: make(map[uint64]cacheItem[T]),
@@ -28,7 +35,7 @@ func newCacheDataMap[T any]() *cacheDataMap[T] {
 	return c
 }
 
-func NewCacheData[T any]() *CacheData[T] {
+func NewCacheData[T any]() cacheOp[T] {
 	c := &CacheData[T]{
 		data:           make([]*cacheDataMap[T], 256),
 		expirationData: newExpirationData[T](),
@@ -45,13 +52,20 @@ func (c *CacheData[T]) Set(key uint64, value T, expiration time.Time) {
 		item:       value,
 		expiration: expiration,
 	}
-	c.data[i].set(key, item)
+	oldItem, update := c.data[i].set(key, item)
+	if update {
+		c.expirationData.update(key, oldItem.expiration, expiration)
+	} else {
+		c.expirationData.add(key, expiration)
+	}
 }
 
-func (c *cacheDataMap[T]) set(key uint64, item cacheItem[T]) {
+func (c *cacheDataMap[T]) set(key uint64, item cacheItem[T]) (cacheItem[T], bool) {
 	c.Lock()
 	defer c.Unlock()
+	oldItem, ok := c.dataMap[key]
 	c.dataMap[key] = item
+	return oldItem, ok
 }
 
 func (c *CacheData[T]) Get(key uint64) (T, error) {
@@ -80,4 +94,8 @@ func (c *CacheData[T]) Del(key uint64) {
 
 func (c *cacheDataMap[T]) del(key uint64) {
 	delete(c.dataMap, key)
+}
+
+func (c *CacheData[T]) RemoveExpiredItem() {
+	c.expirationData.removeExpiredItem(c)
 }

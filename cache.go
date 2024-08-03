@@ -1,35 +1,28 @@
 package cache
 
 import (
-	"errors"
 	"time"
+
+	"github.com/cespare/xxhash/v2"
 )
 
-var stopTicker chan int
+var (
+	stopTicker         chan int
+	ExpirationInterval = int64(5)
+)
 
 type Cache[T any] struct {
-	data          map[string]CacheItem[T]
+	data          cacheOp[T]
 	done          chan int
 	capacity      int16
 	cleanupTicker *time.Ticker
 }
 
-func NewCacheWithCapacity[T any](capacity, cleanupInterval int16, done chan int) *Cache[T] {
-	timer := time.NewTicker(time.Duration(cleanupInterval) * time.Second)
+func NewCacheWithCapacity[T any](capacity int16, done chan int) *Cache[T] {
+	timer := time.NewTicker(time.Duration(ExpirationInterval) * time.Second)
 	cache := &Cache[T]{
-		data:          make(map[string]CacheItem[T], capacity),
+		data:          NewCacheData[T](),
 		capacity:      capacity,
-		done:          done,
-		cleanupTicker: timer,
-	}
-	go cache.cleanUp()
-	return cache
-}
-
-func NewCache[T any](cleanupInterval int16, done chan int) *Cache[T] {
-	timer := time.NewTicker(time.Duration(cleanupInterval) * time.Second)
-	cache := &Cache[T]{
-		data:          make(map[string]CacheItem[T]),
 		done:          done,
 		cleanupTicker: timer,
 	}
@@ -42,20 +35,11 @@ func (c *Cache[T]) StopCleanUp() {
 	stopTicker <- 1
 }
 
-func (c *Cache[T]) deleteExpiredItem() {
-	currentSecond := time.Now().Unix()
-	for k, v := range c.data {
-		if v.expiration >= currentSecond {
-			delete(c.data, k)
-		}
-	}
-}
-
 func (c *Cache[T]) cleanUp() {
 	for {
 		select {
 		case <-c.cleanupTicker.C:
-			c.deleteExpiredItem()
+			c.data.RemoveExpiredItem()
 		case <-c.done:
 			return
 		case <-stopTicker:
@@ -64,48 +48,22 @@ func (c *Cache[T]) cleanUp() {
 	}
 }
 
-func (c *Cache[T]) Set(key string, value T, expirationSecond int64) error {
-	expiration := time.Now().Unix() + expirationSecond
-	item := CacheItem[T]{
-		item:       value,
-		expiration: expiration,
-	}
-	if int(c.capacity) > 0 && len(c.data) >= int(c.capacity) {
-		return errors.New("cache is full")
-	}
-	c.data[key] = item
+func (c *Cache[T]) Set(key string, value T, ttl time.Duration) error {
+	expiration := time.Now().Add(ttl)
+	keyByte := []byte(key)
+	keyInt := xxhash.Sum64(keyByte)
+	c.data.Set(keyInt, value, expiration)
 	return nil
 }
 
-func (c *Cache[T]) Add(key string, value T, expirationSecond int64) error {
-	_, ok := c.data[key]
-	if ok {
-		return errors.New("key already exists")
-	} else {
-		expiration := time.Now().Unix() + expirationSecond
-		item := CacheItem[T]{
-			item:       value,
-			expiration: expiration,
-		}
-		if int(c.capacity) > 0 && len(c.data) >= int(c.capacity) {
-			return errors.New("cache is full")
-		}
-		c.data[key] = item
-		return nil
-	}
-}
-
 func (c *Cache[T]) Get(key string) (T, error) {
-	var value T
-	item, ok := c.data[key]
-	if ok {
-		value = item.item
-		return value, nil
-	} else {
-		return value, errors.New("key not found in cache")
-	}
+	keyByte := []byte(key)
+	keyInt := xxhash.Sum64(keyByte)
+	return c.data.Get(keyInt)
 }
 
 func (c *Cache[T]) Delete(key string) {
-	delete(c.data, key)
+	keyByte := []byte(key)
+	keyInt := xxhash.Sum64(keyByte)
+	c.data.Del(keyInt)
 }
