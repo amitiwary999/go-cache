@@ -18,6 +18,10 @@ type cacheDataMap[T any] struct {
 
 type CacheData[T any] struct {
 	data           []*cacheDataMap[T]
+	getCountBatch  []uint64
+	itemsCh        chan []uint64
+	done           chan int
+	batchSize      uint64
 	expirationData *expirationData[T]
 }
 
@@ -35,9 +39,13 @@ func newCacheDataMap[T any]() *cacheDataMap[T] {
 	return c
 }
 
-func NewCacheData[T any]() cacheOp[T] {
+func NewCacheData[T any](batchSize uint64, done chan int) cacheOp[T] {
 	c := &CacheData[T]{
 		data:           make([]*cacheDataMap[T], 256),
+		getCountBatch:  make([]uint64, batchSize),
+		itemsCh:        make(chan []uint64, 5),
+		batchSize:      batchSize,
+		done:           done,
 		expirationData: newExpirationData[T](),
 	}
 	for i := range c.data {
@@ -70,6 +78,11 @@ func (c *cacheDataMap[T]) set(key uint64, item cacheItem[T]) (cacheItem[T], bool
 
 func (c *CacheData[T]) Get(key uint64) (T, error) {
 	i := key % 256
+	c.getCountBatch = append(c.getCountBatch, 1)
+	if len(c.getCountBatch) >= int(c.batchSize) {
+		c.itemsCh <- c.getCountBatch
+		c.getCountBatch = c.getCountBatch[:0]
+	}
 	return c.data[i].get(key)
 }
 
@@ -98,4 +111,17 @@ func (c *cacheDataMap[T]) del(key uint64) {
 
 func (c *CacheData[T]) RemoveExpiredItem() {
 	c.expirationData.removeExpiredItem(c)
+}
+
+func (c *CacheData[T]) process() {
+	for {
+		select {
+		case items := <-c.itemsCh:
+			for _, item := range items {
+
+			}
+		case <-c.done:
+			return
+		}
+	}
 }
