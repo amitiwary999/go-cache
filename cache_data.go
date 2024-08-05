@@ -22,6 +22,8 @@ type CacheData[T any] struct {
 	itemsCh        chan []uint64
 	done           chan int
 	batchSize      uint64
+	lfuSketch      countmin
+	lfuQueue       PriorityQueue
 	expirationData *expirationData[T]
 }
 
@@ -39,18 +41,20 @@ func newCacheDataMap[T any]() *cacheDataMap[T] {
 	return c
 }
 
-func NewCacheData[T any](batchSize uint64, done chan int) cacheOp[T] {
+func NewCacheData[T any](batchSize uint64, freqCounter uint64, done chan int) cacheOp[T] {
 	c := &CacheData[T]{
 		data:           make([]*cacheDataMap[T], 256),
 		getCountBatch:  make([]uint64, batchSize),
 		itemsCh:        make(chan []uint64, 5),
 		batchSize:      batchSize,
 		done:           done,
+		lfuSketch:      *newCountMin(freqCounter),
 		expirationData: newExpirationData[T](),
 	}
 	for i := range c.data {
 		c.data[i] = newCacheDataMap[T]()
 	}
+	go c.process()
 	return c
 }
 
@@ -117,8 +121,18 @@ func (c *CacheData[T]) process() {
 	for {
 		select {
 		case items := <-c.itemsCh:
+			uniqueItems := make(map[uint64]struct{})
 			for _, item := range items {
-
+				c.lfuSketch.setKeyCount(item)
+				uniqueItems[item] = struct{}{}
+			}
+			for k, _ := range uniqueItems {
+				freq := c.lfuSketch.getKeyCount(k)
+				item := LFUItem{
+					key:  k,
+					freq: freq,
+				}
+				c.lfuQueue.Push(item)
 			}
 		case <-c.done:
 			return

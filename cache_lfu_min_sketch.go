@@ -9,7 +9,7 @@ import (
 const seedLen = 3
 
 type countmin struct {
-	filterItemSize int
+	filterItemSize uint64
 	filter         [][]uint64
 	seed           []uint64
 }
@@ -21,7 +21,7 @@ func minFunc(a uint64, b uint64) uint64 {
 	return a
 }
 
-func NewCountMin(size int) *countmin {
+func newCountMin(size uint64) *countmin {
 	cm := &countmin{
 		filterItemSize: size,
 	}
@@ -32,14 +32,14 @@ func NewCountMin(size int) *countmin {
 	return cm
 }
 
-func (c *countmin) SetKeyCount(hash uint64) {
+func (c *countmin) setKeyCount(hash uint64) {
 	for i, s := range c.seed {
 		index := (hash ^ s) % uint64(c.filterItemSize)
 		c.filter[i][index] = c.filter[i][index] + 1
 	}
 }
 
-func (c *countmin) GetKeyCount(hash uint64) uint64 {
+func (c *countmin) getKeyCount(hash uint64) uint64 {
 	var min uint64 = math.MaxUint64
 	for i, s := range c.seed {
 		index := (hash ^ s) % uint64(c.filterItemSize)
