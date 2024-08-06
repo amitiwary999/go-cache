@@ -24,6 +24,8 @@ func minFunc(a uint64, b uint64) uint64 {
 func newCountMin(size uint64) *countmin {
 	cm := &countmin{
 		filterItemSize: size,
+		filter:         make([][]uint64, seedLen),
+		seed:           make([]uint64, seedLen),
 	}
 	for i := 0; i < seedLen; i++ {
 		cm.filter[i] = make([]uint64, size)

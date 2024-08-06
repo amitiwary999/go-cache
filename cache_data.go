@@ -128,12 +128,13 @@ func (c *CacheData[T]) process() {
 			}
 			for k, _ := range uniqueItems {
 				freq := c.lfuSketch.getKeyCount(k)
-				item := LFUItem{
+				item := &LFUItem{
 					key:  k,
 					freq: freq,
 				}
 				c.lfuQueue.Push(item)
 			}
+			uniqueItems = nil
 		case <-c.done:
 			return
 		}
