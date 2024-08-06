@@ -17,8 +17,11 @@ type cacheDataMap[T any] struct {
 }
 
 type CacheData[T any] struct {
+	sync.Mutex
 	data           []*cacheDataMap[T]
 	getCountBatch  []uint64
+	capacity       uint64
+	size           int64
 	itemsCh        chan []uint64
 	done           chan int
 	batchSize      uint64
@@ -41,10 +44,11 @@ func newCacheDataMap[T any]() *cacheDataMap[T] {
 	return c
 }
 
-func NewCacheData[T any](batchSize uint64, freqCounter uint64, done chan int) cacheOp[T] {
+func NewCacheData[T any](capacity uint64, batchSize uint64, freqCounter uint64, done chan int) cacheOp[T] {
 	c := &CacheData[T]{
 		data:           make([]*cacheDataMap[T], 256),
 		getCountBatch:  make([]uint64, batchSize),
+		capacity:       capacity,
 		itemsCh:        make(chan []uint64, 5),
 		batchSize:      batchSize,
 		done:           done,
@@ -69,6 +73,11 @@ func (c *CacheData[T]) Set(key uint64, value T, expiration time.Time) {
 		c.expirationData.update(key, oldItem.expiration, expiration)
 	} else {
 		c.expirationData.add(key, expiration)
+		c.changeSize(1)
+		if c.size > int64(c.capacity) {
+			lfuItem := c.lfuQueue.Pop().(*LFUItem)
+			c.Del(lfuItem.key)
+		}
 	}
 }
 
@@ -106,11 +115,16 @@ func (c *cacheDataMap[T]) get(key uint64) (T, error) {
 
 func (c *CacheData[T]) Del(key uint64) {
 	i := key % 256
-	c.data[i].del(key)
+	ok := c.data[i].del(key)
+	if ok {
+		c.changeSize(-1)
+	}
 }
 
-func (c *cacheDataMap[T]) del(key uint64) {
+func (c *cacheDataMap[T]) del(key uint64) bool {
+	_, ok := c.dataMap[key]
 	delete(c.dataMap, key)
+	return ok
 }
 
 func (c *CacheData[T]) RemoveExpiredItem() {
@@ -139,4 +153,10 @@ func (c *CacheData[T]) process() {
 			return
 		}
 	}
+}
+
+func (c *CacheData[T]) changeSize(changeSize int64) {
+	c.Lock()
+	c.size = c.size + changeSize
+	c.Unlock()
 }

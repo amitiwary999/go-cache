@@ -14,15 +14,13 @@ var (
 type Cache[T any] struct {
 	data          cacheOp[T]
 	done          chan int
-	capacity      int16
 	cleanupTicker *time.Ticker
 }
 
-func NewCacheWithCapacity[T any](capacity int16, countBatch uint64, freqCount uint64, done chan int) *Cache[T] {
+func NewCacheWithCapacity[T any](capacity uint64, countBatch uint64, freqCount uint64, done chan int) *Cache[T] {
 	timer := time.NewTicker(time.Duration(ExpirationInterval) * time.Second)
 	cache := &Cache[T]{
-		data:          NewCacheData[T](countBatch, freqCount, done),
-		capacity:      capacity,
+		data:          NewCacheData[T](capacity, countBatch, freqCount, done),
 		done:          done,
 		cleanupTicker: timer,
 	}
