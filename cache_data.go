@@ -74,10 +74,8 @@ func (c *CacheData[T]) Set(key uint64, value T, expiration time.Time) {
 	} else {
 		c.expirationData.add(key, expiration)
 		c.changeSize(1)
-		if c.size > int64(c.capacity) {
-			lfuItem := c.lfuQueue.Pop().(*LFUItem)
-			c.Del(lfuItem.key)
-		}
+		c.removeExcessItem()
+		c.addFreq(key)
 	}
 }
 
@@ -91,11 +89,7 @@ func (c *cacheDataMap[T]) set(key uint64, item cacheItem[T]) (cacheItem[T], bool
 
 func (c *CacheData[T]) Get(key uint64) (T, error) {
 	i := key % 256
-	c.getCountBatch = append(c.getCountBatch, 1)
-	if len(c.getCountBatch) >= int(c.batchSize) {
-		c.itemsCh <- c.getCountBatch
-		c.getCountBatch = c.getCountBatch[:0]
-	}
+	c.addFreq(key)
 	return c.data[i].get(key)
 }
 
@@ -129,6 +123,26 @@ func (c *cacheDataMap[T]) del(key uint64) bool {
 
 func (c *CacheData[T]) RemoveExpiredItem() {
 	c.expirationData.removeExpiredItem(c)
+}
+
+func (c *CacheData[T]) addFreq(key uint64) {
+	c.Lock()
+	defer c.Unlock()
+	c.getCountBatch = append(c.getCountBatch, key)
+	if len(c.getCountBatch) >= int(c.batchSize) {
+		c.itemsCh <- c.getCountBatch
+		c.getCountBatch = c.getCountBatch[:0]
+	}
+}
+
+func (c *CacheData[T]) removeExcessItem() {
+	if c.size > int64(c.capacity) {
+		lfuItemI := c.lfuQueue.Pop()
+		if lfuItemI != nil {
+			lfuItem := lfuItemI.((*LFUItem))
+			c.Del(lfuItem.key)
+		}
+	}
 }
 
 func (c *CacheData[T]) process() {
