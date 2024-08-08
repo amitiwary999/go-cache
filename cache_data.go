@@ -1,10 +1,11 @@
 package cache
 
 import (
-	"container/heap"
 	"errors"
 	"sync"
 	"time"
+
+	cacheheap "github.com/amitiwary999/go-cache/internal/heap"
 )
 
 type cacheItem[T any] struct {
@@ -28,6 +29,7 @@ type CacheData[T any] struct {
 	batchSize      uint64
 	lfuSketch      countmin
 	lfuQueue       PriorityQueue
+	queuePosMap    map[uint64]int
 	expirationData *expirationData[T]
 }
 
@@ -55,12 +57,13 @@ func NewCacheData[T any](capacity uint64, batchSize uint64, freqCounter uint64, 
 		done:           done,
 		lfuSketch:      *newCountMin(freqCounter),
 		lfuQueue:       make(PriorityQueue, 0),
+		queuePosMap:    make(map[uint64]int),
 		expirationData: newExpirationData[T](),
 	}
 	for i := range c.data {
 		c.data[i] = newCacheDataMap[T]()
 	}
-	heap.Init(&c.lfuQueue)
+	cacheheap.Init(&c.lfuQueue)
 	go c.process()
 	return c
 }
@@ -140,7 +143,7 @@ func (c *CacheData[T]) addFreq(key uint64) {
 
 func (c *CacheData[T]) removeExcessItem() {
 	if c.size >= int64(c.capacity) {
-		lfuItemI := heap.Pop(&c.lfuQueue)
+		lfuItemI := cacheheap.Pop(&c.lfuQueue)
 		if lfuItemI != nil {
 			lfuItem := lfuItemI.((*LFUItem))
 			c.Del(lfuItem.key)
@@ -163,7 +166,14 @@ func (c *CacheData[T]) process() {
 					key:  k,
 					freq: freq,
 				}
-				heap.Push(&c.lfuQueue, item)
+				oldPos, pOk := c.queuePosMap[k]
+				if pOk {
+					c.lfuQueue.update(item, oldPos)
+					cacheheap.Fix(&c.lfuQueue, oldPos)
+				} else {
+					pos := cacheheap.Push(&c.lfuQueue, item)
+					c.queuePosMap[k] = pos
+				}
 			}
 			uniqueItems = nil
 		case <-c.done:
