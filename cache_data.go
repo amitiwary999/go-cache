@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"container/heap"
 	"errors"
 	"sync"
 	"time"
@@ -53,11 +54,13 @@ func NewCacheData[T any](capacity uint64, batchSize uint64, freqCounter uint64, 
 		batchSize:      batchSize,
 		done:           done,
 		lfuSketch:      *newCountMin(freqCounter),
+		lfuQueue:       make(PriorityQueue, 0),
 		expirationData: newExpirationData[T](),
 	}
 	for i := range c.data {
 		c.data[i] = newCacheDataMap[T]()
 	}
+	heap.Init(&c.lfuQueue)
 	go c.process()
 	return c
 }
@@ -136,8 +139,8 @@ func (c *CacheData[T]) addFreq(key uint64) {
 }
 
 func (c *CacheData[T]) removeExcessItem() {
-	if c.size > int64(c.capacity) {
-		lfuItemI := c.lfuQueue.Pop()
+	if c.size >= int64(c.capacity) {
+		lfuItemI := heap.Pop(&c.lfuQueue)
 		if lfuItemI != nil {
 			lfuItem := lfuItemI.((*LFUItem))
 			c.Del(lfuItem.key)
@@ -160,7 +163,7 @@ func (c *CacheData[T]) process() {
 					key:  k,
 					freq: freq,
 				}
-				c.lfuQueue.Push(item)
+				heap.Push(&c.lfuQueue, item)
 			}
 			uniqueItems = nil
 		case <-c.done:

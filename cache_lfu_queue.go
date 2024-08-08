@@ -27,6 +27,7 @@ func (pq *PriorityQueue) Pop() interface{} {
 		return nil
 	}
 	item := prev[len(prev)-1]
+	prev[len(prev)-1] = nil
 	*pq = prev[0 : len(prev)-1]
 	return item
 }
