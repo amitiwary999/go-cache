@@ -17,11 +17,11 @@ func (pq PriorityQueue) Swap(i, j int) {
 	pq[i], pq[j] = pq[j], pq[i]
 }
 
-func (pq *PriorityQueue) Push(item interface{}) {
+func (pq *PriorityQueue) Push(item any) {
 	*pq = append(*pq, item.(*LFUItem))
 }
 
-func (pq *PriorityQueue) Pop() interface{} {
+func (pq *PriorityQueue) Pop() any {
 	prev := *pq
 	if len(prev) == 0 {
 		return nil
@@ -30,4 +30,8 @@ func (pq *PriorityQueue) Pop() interface{} {
 	prev[len(prev)-1] = nil
 	*pq = prev[0 : len(prev)-1]
 	return item
+}
+
+func (pq PriorityQueue) update(item *LFUItem, pos int) {
+	pq[pos] = item
 }
