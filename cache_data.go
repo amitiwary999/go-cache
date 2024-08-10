@@ -142,6 +142,8 @@ func (c *CacheData[T]) addFreq(key uint64) {
 }
 
 func (c *CacheData[T]) removeExcessItem() {
+	c.Lock()
+	defer c.Unlock()
 	if c.size >= int64(c.capacity) {
 		lfuItemI := cacheheap.Pop(&c.lfuQueue)
 		if lfuItemI != nil {

@@ -2,6 +2,7 @@ package cacheheap
 
 import "sort"
 
+/** This is the container/heap lib of golang that I used here so that I can make it custoized changed */
 type Interface interface {
 	sort.Interface
 	Push(x any) // add x as element Len()
