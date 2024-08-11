@@ -47,15 +47,15 @@ func newCacheDataMap[T any]() *cacheDataMap[T] {
 	return c
 }
 
-func NewCacheData[T any](capacity uint64, batchSize uint64, freqCounter uint64, done chan int) cacheOp[T] {
+func NewCacheData[T any](cConfig *CacheConfig, done chan int) cacheOp[T] {
 	c := &CacheData[T]{
 		data:           make([]*cacheDataMap[T], 256),
-		getCountBatch:  make([]uint64, batchSize),
-		capacity:       capacity,
+		getCountBatch:  make([]uint64, cConfig.CountBatch),
+		capacity:       cConfig.Capacity,
 		itemsCh:        make(chan []uint64, 5),
-		batchSize:      batchSize,
+		batchSize:      cConfig.CountBatch,
 		done:           done,
-		lfuSketch:      *newCountMin(freqCounter),
+		lfuSketch:      *newCountMin(cConfig.FreqCount),
 		lfuQueue:       make(PriorityQueue, 0),
 		queuePosMap:    make(map[uint64]int),
 		expirationData: newExpirationData[T](),

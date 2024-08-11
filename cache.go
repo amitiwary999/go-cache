@@ -7,9 +7,14 @@ import (
 )
 
 var (
-	stopTicker         chan int
 	ExpirationInterval = int64(5)
 )
+
+type CacheConfig struct {
+	Capacity   uint64
+	CountBatch uint64
+	FreqCount  uint64
+}
 
 type Cache[T any] struct {
 	data          cacheOp[T]
@@ -17,20 +22,15 @@ type Cache[T any] struct {
 	cleanupTicker *time.Ticker
 }
 
-func NewCacheWithCapacity[T any](capacity uint64, countBatch uint64, freqCount uint64, done chan int) *Cache[T] {
+func NewCacheWithCapacity[T any](cConfig *CacheConfig, done chan int) *Cache[T] {
 	timer := time.NewTicker(time.Duration(ExpirationInterval) * time.Second)
 	cache := &Cache[T]{
-		data:          NewCacheData[T](capacity, countBatch, freqCount, done),
+		data:          NewCacheData[T](cConfig, done),
 		done:          done,
 		cleanupTicker: timer,
 	}
 	go cache.cleanUp()
 	return cache
-}
-
-func (c *Cache[T]) StopCleanUp() {
-	c.cleanupTicker.Stop()
-	stopTicker <- 1
 }
 
 func (c *Cache[T]) cleanUp() {
@@ -39,8 +39,6 @@ func (c *Cache[T]) cleanUp() {
 		case <-c.cleanupTicker.C:
 			c.data.RemoveExpiredItem()
 		case <-c.done:
-			return
-		case <-stopTicker:
 			return
 		}
 	}

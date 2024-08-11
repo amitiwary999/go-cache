@@ -9,7 +9,11 @@ import (
 
 func main() {
 	done := make(chan int)
-	nch := cache.NewCacheWithCapacity[int](20, 5, 10, done)
+	nch := cache.NewCacheWithCapacity[int](&cache.CacheConfig{
+		Capacity:   20,
+		CountBatch: 5,
+		FreqCount:  10,
+	}, done)
 	nch.Set("hi", 5, time.Duration(5*time.Second))
 	val, err := nch.Get("hi")
 	if err != nil {
