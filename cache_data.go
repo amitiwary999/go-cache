@@ -79,9 +79,9 @@ func (c *CacheData[T]) Set(key uint64, value T, expiration time.Time) {
 		c.expirationData.update(key, oldItem.expiration, expiration)
 	} else {
 		c.expirationData.add(key, expiration)
+		c.addFreq(key)
 		c.changeSize(1)
 		c.removeExcessItem()
-		c.addFreq(key)
 	}
 }
 
@@ -132,8 +132,6 @@ func (c *CacheData[T]) RemoveExpiredItem() {
 }
 
 func (c *CacheData[T]) addFreq(key uint64) {
-	c.Lock()
-	defer c.Unlock()
 	c.getCountBatch = append(c.getCountBatch, key)
 	if len(c.getCountBatch) >= int(c.batchSize) {
 		c.itemsCh <- c.getCountBatch
@@ -185,7 +183,5 @@ func (c *CacheData[T]) process() {
 }
 
 func (c *CacheData[T]) changeSize(changeSize int64) {
-	c.Lock()
 	c.size = c.size + changeSize
-	c.Unlock()
 }
