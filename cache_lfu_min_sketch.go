@@ -49,3 +49,11 @@ func (c *countmin) getKeyCount(hash uint64) uint64 {
 	}
 	return min
 }
+
+func (c *countmin) reset() {
+	for i := 0; i < len(c.seed); i++ {
+		for j := 0; j < int(c.filterItemSize); j++ {
+			c.filter[i][j] = 0
+		}
+	}
+}

@@ -35,3 +35,9 @@ func (pq *PriorityQueue) Pop() any {
 func (pq PriorityQueue) update(item *LFUItem, pos int) {
 	pq[pos] = item
 }
+
+func (pq PriorityQueue) reset() {
+	for _, item := range pq {
+		item.freq = 1
+	}
+}

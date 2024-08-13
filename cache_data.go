@@ -37,6 +37,7 @@ type cacheOp[T any] interface {
 	Set(uint64, T, time.Time)
 	Get(uint64) (T, error)
 	Del(uint64)
+	Reset()
 	RemoveExpiredItem()
 }
 
@@ -66,6 +67,10 @@ func NewCacheData[T any](cConfig *CacheConfig, done chan int) cacheOp[T] {
 	cacheheap.Init(&c.lfuQueue)
 	go c.process()
 	return c
+}
+
+func (c *CacheData[T]) close() {
+	close(c.itemsCh)
 }
 
 func (c *CacheData[T]) Set(key uint64, value T, expiration time.Time) {
@@ -177,6 +182,7 @@ func (c *CacheData[T]) process() {
 			}
 			uniqueItems = nil
 		case <-c.done:
+			c.close()
 			return
 		}
 	}
@@ -184,4 +190,9 @@ func (c *CacheData[T]) process() {
 
 func (c *CacheData[T]) changeSize(changeSize int64) {
 	c.size = c.size + changeSize
+}
+
+func (c *CacheData[T]) Reset() {
+	c.lfuQueue.reset()
+	c.lfuSketch.reset()
 }
