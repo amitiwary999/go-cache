@@ -4,16 +4,15 @@ import "time"
 
 var bucketNo = 1
 
-const interval time.Duration = 24 * time.Hour
-
 type bucket map[string]byte
 type deleteInfo struct {
-	deleteHour int
-	buckets    map[int]bucket
-	t          *time.Timer
+	deleteHour     int
+	deleteInterval time.Duration
+	buckets        map[int]bucket
+	t              *time.Timer
 }
 
-func getTickerTime(hour int) time.Duration {
+func getTickerTime(hour int, interval time.Duration) time.Duration {
 	now := time.Now()
 	nextTick := time.Date(now.Year(), now.Month(), now.Day(), hour, 0, 0, 0, time.Local)
 	if nextTick.Before(now) {
@@ -22,11 +21,12 @@ func getTickerTime(hour int) time.Duration {
 	return time.Until(nextTick)
 }
 
-func NewDeleteInfo(hour int) *deleteInfo {
+func NewDeleteInfo(hour int, interval time.Duration) *deleteInfo {
 	di := &deleteInfo{
-		deleteHour: hour,
-		buckets:    make(map[int]bucket),
-		t:          time.NewTimer(getTickerTime(hour)),
+		deleteHour:     hour,
+		buckets:        make(map[int]bucket),
+		deleteInterval: interval,
+		t:              time.NewTimer(getTickerTime(hour, interval)),
 	}
 	return di
 }
@@ -41,7 +41,11 @@ func (d *deleteInfo) add(key string) {
 }
 
 func (d *deleteInfo) updateTicker() {
-	d.t.Reset(getTickerTime(d.deleteHour))
+	d.t.Reset(getTickerTime(d.deleteHour, d.deleteInterval))
+}
+
+func (d *deleteInfo) clear(bucketNo int) {
+
 }
 
 func (d *deleteInfo) process() {
