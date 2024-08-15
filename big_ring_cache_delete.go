@@ -11,12 +11,14 @@ import (
 	"github.com/cespare/xxhash/v2"
 )
 
-var bucketNo = 1
+var (
+	bucketNo     = 1
+	tempFileName = fmt.Sprintf("%v/%v", HomeDir, "big-cache-ring-data.txt")
+)
 
 type bucket map[string]byte
 type deleteInfo struct {
-	fileName       string
-	tempFileName   string
+	tempFile       *os.File
 	deleteHour     int
 	deleteInterval time.Duration
 	buckets        map[int]bucket
@@ -32,17 +34,13 @@ func getTickerTime(hour int, interval time.Duration) time.Duration {
 	return time.Until(nextTick)
 }
 
-func NewDeleteInfo(hour int, interval time.Duration, homeDir string, fileName string) *deleteInfo {
-	tempFileName := fmt.Sprintf("%v/%v", homeDir, "big-cache-ring-data.txt")
+func newDeleteInfo(hour int, interval time.Duration) *deleteInfo {
 	di := &deleteInfo{
-		fileName:       fileName,
-		tempFileName:   tempFileName,
 		deleteHour:     hour,
 		buckets:        make(map[int]bucket),
 		deleteInterval: interval,
 		t:              time.NewTimer(getTickerTime(hour, interval)),
 	}
-	go di.process()
 	return di
 }
 
@@ -67,19 +65,21 @@ func (d *deleteInfo) updateTicker() {
 	d.t.Reset(getTickerTime(d.deleteHour, d.deleteInterval))
 }
 
-func (d *deleteInfo) clear() {
+func (d *deleteInfo) clear() (map[uint64]int64, []string) {
 	offsetMap := make(map[uint64]int64)
+	keys := make([]string, 10)
 	delBucketNo := bucketNo
 	bucketNo += 1
 	bucket, ok := d.buckets[delBucketNo]
 	if ok {
-		tmpFile, tmpFileErr := createTempFile(d.tempFileName)
+		tmpFile, tmpFileErr := createTempFile(tempFileName)
+		d.tempFile = tmpFile
 		if tmpFileErr != nil {
-			return
+			return nil, nil
 		}
-		file, fileErr := mainFile(d.fileName)
+		file, fileErr := mainFile(FileName)
 		if fileErr != nil {
-			return
+			return nil, nil
 		}
 		scanner := bufio.NewScanner(file)
 		scanner.Split(splitFunction)
@@ -92,17 +92,24 @@ func (d *deleteInfo) clear() {
 				if !ok {
 					offset, offsetErr := tmpFile.Seek(0, io.SeekEnd)
 					if offsetErr != nil {
-						return
+						return nil, nil
 					}
 					keyInt := xxhash.Sum64([]byte(keyString))
 					tmpFile.WriteString(string(b))
 					offsetMap[keyInt] = offset
+					keys = append(keys, keyString)
 				}
 			}
 		}
 	}
+	return offsetMap, keys
 }
 
-func (d *deleteInfo) process() {
-	d.clear()
+func (d *deleteInfo) process(intrf CleanFileInterface) {
+	for {
+		<-d.t.C
+		offsetMap, keys := d.clear()
+		intrf.updateCleanedFile(offsetMap, keys)
+		d.updateTicker()
+	}
 }

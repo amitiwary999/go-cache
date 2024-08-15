@@ -3,10 +3,11 @@ package cache
 import (
 	"fmt"
 	"testing"
+	"time"
 )
 
 func TestBigRingCache(t *testing.T) {
-	bch, initErr := NewBigCacheRing(5)
+	bch, initErr := NewBigCacheRing(5, 1, 120*time.Hour)
 	doneCh := make(chan int)
 	bch.LoadFileOffset(doneCh)
 	<-doneCh
