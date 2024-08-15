@@ -109,6 +109,8 @@ func (d *deleteInfo) process(intrf CleanFileInterface) {
 	for {
 		<-d.t.C
 		offsetMap, keys := d.clear()
+		os.Rename(tempFileName, FileName)
+		d.tempFile.Close()
 		intrf.updateCleanedFile(offsetMap, keys)
 		d.updateTicker()
 	}

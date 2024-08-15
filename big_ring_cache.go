@@ -24,6 +24,7 @@ type bigCacheRing struct {
 	offsetMap   map[uint64]int64
 	cacheRing   *cacheRing[string]
 	bloomFilter *bloom.BloomFilter
+	deleteInfo  *deleteInfo
 }
 
 type CleanFileInterface interface {
@@ -44,13 +45,14 @@ func NewBigCacheRing(bufferSize int32, hour int, interval time.Duration) (*bigCa
 	cacheRing := NewCacheRing[string](bufferSize)
 	offsetMap := make(map[uint64]int64)
 	filter := bloom.NewWithEstimates(1000000, 0.01)
+	di := newDeleteInfo(hour, interval)
 	bigch := &bigCacheRing{
 		file:        file,
 		offsetMap:   offsetMap,
 		cacheRing:   cacheRing,
 		bloomFilter: filter,
+		deleteInfo:  di,
 	}
-	di := newDeleteInfo(hour, interval)
 	go di.process(bigch)
 	return bigch, nil
 }
@@ -123,6 +125,7 @@ func (c *bigCacheRing) Delete(key string) {
 	keyInt := xxhash.Sum64(keyByte)
 	delete(c.cacheRing.data, keyInt)
 	delete(c.offsetMap, keyInt)
+	c.deleteInfo.add(key)
 }
 
 func (c *bigCacheRing) Size(cacheType int) int {
