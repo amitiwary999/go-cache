@@ -15,6 +15,7 @@ import (
 
 type bigCacheRing struct {
 	file        *os.File
+	homeDir     string
 	offsetMap   map[uint64]int64
 	cacheRing   *cacheRing[string]
 	bloomFilter *bloom.BloomFilter
@@ -34,6 +35,7 @@ func NewBigCacheRing(bufferSize int32) (*bigCacheRing, error) {
 	offsetMap := make(map[uint64]int64)
 	filter := bloom.NewWithEstimates(1000000, 0.01)
 	return &bigCacheRing{
+		homeDir:     homeDir,
 		file:        file,
 		offsetMap:   offsetMap,
 		cacheRing:   cacheRing,

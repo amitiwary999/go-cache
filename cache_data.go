@@ -165,7 +165,7 @@ func (c *CacheData[T]) process() {
 				c.lfuSketch.setKeyCount(item)
 				uniqueItems[item] = struct{}{}
 			}
-			for k, _ := range uniqueItems {
+			for k := range uniqueItems {
 				freq := c.lfuSketch.getKeyCount(k)
 				item := &LFUItem{
 					key:  k,
