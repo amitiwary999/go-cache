@@ -22,25 +22,29 @@ type deleteInfo struct {
 	tempFile       *os.File
 	deleteHour     int
 	deleteInterval time.Duration
+	deleteMin      int
+	deleteSec      int
 	buckets        map[int]bucket
 	t              *time.Timer
 }
 
-func getTickerTime(hour int, interval time.Duration) time.Duration {
+func getTickerTime(dInt time.Duration, dHour int, dMin int, dSec int) time.Duration {
 	now := time.Now()
-	nextTick := time.Date(now.Year(), now.Month(), now.Day(), hour, 0, 0, 0, time.Local)
+	nextTick := time.Date(now.Year(), now.Month(), now.Day(), dHour, dMin, dSec, 0, time.Local)
 	if nextTick.Before(now) {
-		nextTick = nextTick.Add(interval)
+		nextTick = nextTick.Add(dInt)
 	}
 	return time.Until(nextTick)
 }
 
-func newDeleteInfo(hour int, interval time.Duration) *deleteInfo {
+func newDeleteInfo(ti *TickerInfo) *deleteInfo {
 	di := &deleteInfo{
-		deleteHour:     hour,
+		deleteHour:     ti.Hour,
 		buckets:        make(map[int]bucket),
-		deleteInterval: interval,
-		t:              time.NewTimer(getTickerTime(hour, interval)),
+		deleteInterval: ti.Interval,
+		deleteMin:      ti.Min,
+		deleteSec:      ti.Sec,
+		t:              time.NewTimer(getTickerTime(ti.Interval, ti.Hour, ti.Min, ti.Sec)),
 	}
 	tempFilePath = fmt.Sprintf("%v/%v", HomeDir, "big-cache-ring-data-temp.txt")
 	mainFilePath = fmt.Sprintf("%v/%v", HomeDir, FileName)
@@ -65,10 +69,10 @@ func (d *deleteInfo) add(key string) {
 }
 
 func (d *deleteInfo) updateTicker() {
-	d.t.Reset(getTickerTime(d.deleteHour, d.deleteInterval))
+	d.t.Reset(getTickerTime(d.deleteInterval, d.deleteHour, d.deleteMin, d.deleteSec))
 }
 
-func (d *deleteInfo) clear() (map[uint64]int64, []string) {
+func (d *deleteInfo) cleanFile() (map[uint64]int64, []string) {
 	offsetMap := make(map[uint64]int64)
 	keys := make([]string, 10)
 	delBucketNo := bucketNo
@@ -110,10 +114,15 @@ func (d *deleteInfo) clear() (map[uint64]int64, []string) {
 	return offsetMap, keys
 }
 
+func (d *deleteInfo) clear() {
+	d.t.Stop()
+	d.tempFile.Close()
+}
+
 func (d *deleteInfo) process(intrf CleanFileInterface) {
 	for {
 		<-d.t.C
-		offsetMap, keys := d.clear()
+		offsetMap, keys := d.cleanFile()
 		if offsetMap != nil {
 			renameErr := os.Rename(tempFilePath, mainFilePath)
 			if renameErr != nil {

@@ -27,11 +27,18 @@ type bigCacheRing struct {
 	deleteInfo  *deleteInfo
 }
 
+type TickerInfo struct {
+	Hour     int
+	Min      int
+	Sec      int
+	Interval time.Duration
+}
+
 type CleanFileInterface interface {
 	updateCleanedFile(map[uint64]int64, []string)
 }
 
-func NewBigCacheRing(bufferSize int32, hour int, interval time.Duration) (*bigCacheRing, error) {
+func NewBigCacheRing(bufferSize int32, ti *TickerInfo) (*bigCacheRing, error) {
 	var err error = nil
 	HomeDir, err = os.UserHomeDir()
 	if err != nil {
@@ -45,7 +52,7 @@ func NewBigCacheRing(bufferSize int32, hour int, interval time.Duration) (*bigCa
 	cacheRing := NewCacheRing[string](bufferSize)
 	offsetMap := make(map[uint64]int64)
 	filter := bloom.NewWithEstimates(1000000, 0.01)
-	di := newDeleteInfo(hour, interval)
+	di := newDeleteInfo(ti)
 	bigch := &bigCacheRing{
 		file:        file,
 		offsetMap:   offsetMap,
@@ -188,4 +195,11 @@ func (c *bigCacheRing) updateCleanedFile(offsetMap map[uint64]int64, keys []stri
 			c.bloomFilter.Add([]byte(key))
 		}
 	}
+}
+
+func (c *bigCacheRing) Clear() {
+	c.file.Close()
+	c.deleteInfo.clear()
+	c.bloomFilter.ClearAll()
+	c.offsetMap = make(map[uint64]int64)
 }
