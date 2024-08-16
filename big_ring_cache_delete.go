@@ -13,7 +13,7 @@ import (
 
 var (
 	bucketNo     = 1
-	tempFileName = fmt.Sprintf("%v/%v", HomeDir, "big-cache-ring-data.txt")
+	tempFileName = fmt.Sprintf("%v/%v", HomeDir, "big-cache-ring-data-temp.txt")
 )
 
 type bucket map[string]byte
@@ -109,9 +109,23 @@ func (d *deleteInfo) process(intrf CleanFileInterface) {
 	for {
 		<-d.t.C
 		offsetMap, keys := d.clear()
-		os.Rename(tempFileName, FileName)
+		if offsetMap != nil {
+			renameErr := os.Rename(tempFileName, FileName)
+			if renameErr != nil {
+				fmt.Printf("failed to rename the temp file after cleanup %v \n", renameErr)
+				for k, v := range d.buckets[bucketNo-1] {
+					d.buckets[bucketNo][k] = v
+				}
+			} else {
+				intrf.updateCleanedFile(offsetMap, keys)
+			}
+		} else {
+			for k, v := range d.buckets[bucketNo-1] {
+				d.buckets[bucketNo][k] = v
+			}
+		}
+		delete(d.buckets, bucketNo-1)
 		d.tempFile.Close()
-		intrf.updateCleanedFile(offsetMap, keys)
 		d.updateTicker()
 	}
 }
