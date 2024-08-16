@@ -13,7 +13,8 @@ import (
 
 var (
 	bucketNo     = 1
-	tempFileName = fmt.Sprintf("%v/%v", HomeDir, "big-cache-ring-data-temp.txt")
+	tempFilePath = ""
+	mainFilePath = ""
 )
 
 type bucket map[string]byte
@@ -41,6 +42,8 @@ func newDeleteInfo(hour int, interval time.Duration) *deleteInfo {
 		deleteInterval: interval,
 		t:              time.NewTimer(getTickerTime(hour, interval)),
 	}
+	tempFilePath = fmt.Sprintf("%v/%v", HomeDir, "big-cache-ring-data-temp.txt")
+	mainFilePath = fmt.Sprintf("%v/%v", HomeDir, FileName)
 	return di
 }
 
@@ -72,13 +75,15 @@ func (d *deleteInfo) clear() (map[uint64]int64, []string) {
 	bucketNo += 1
 	bucket, ok := d.buckets[delBucketNo]
 	if ok {
-		tmpFile, tmpFileErr := createTempFile(tempFileName)
-		d.tempFile = tmpFile
-		if tmpFileErr != nil {
+		file, fileErr := mainFile(mainFilePath)
+		if fileErr != nil {
+			fmt.Printf("main file create error %v \n", fileErr)
 			return nil, nil
 		}
-		file, fileErr := mainFile(FileName)
-		if fileErr != nil {
+		tmpFile, tmpFileErr := createTempFile(tempFilePath)
+		d.tempFile = tmpFile
+		if tmpFileErr != nil {
+			fmt.Printf("temp file create error %v \n", tmpFileErr)
 			return nil, nil
 		}
 		scanner := bufio.NewScanner(file)
@@ -110,18 +115,18 @@ func (d *deleteInfo) process(intrf CleanFileInterface) {
 		<-d.t.C
 		offsetMap, keys := d.clear()
 		if offsetMap != nil {
-			renameErr := os.Rename(tempFileName, FileName)
+			renameErr := os.Rename(tempFilePath, mainFilePath)
 			if renameErr != nil {
 				fmt.Printf("failed to rename the temp file after cleanup %v \n", renameErr)
-				for k, v := range d.buckets[bucketNo-1] {
-					d.buckets[bucketNo][k] = v
+				for k := range d.buckets[bucketNo-1] {
+					d.add(k)
 				}
 			} else {
 				intrf.updateCleanedFile(offsetMap, keys)
 			}
 		} else {
-			for k, v := range d.buckets[bucketNo-1] {
-				d.buckets[bucketNo][k] = v
+			for k := range d.buckets[bucketNo-1] {
+				d.add(k)
 			}
 		}
 		delete(d.buckets, bucketNo-1)
