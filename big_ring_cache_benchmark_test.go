@@ -41,9 +41,9 @@ func Delete(bgr *bigCacheRing, start, end int) {
 func BenchmarkBigCache(b *testing.B) {
 	ti := &TickerInfo{
 		Interval: 5 * time.Second,
-		Hour:     20,
-		Min:      31,
-		Sec:      20,
+		Hour:     22,
+		Min:      05,
+		Sec:      10,
 	}
 	bgc, err := NewBigCacheRing(100000, ti)
 	if err == nil {
@@ -51,14 +51,12 @@ func BenchmarkBigCache(b *testing.B) {
 		Delete(bgc, 0, 2000)
 		Get(bgc, 0, 12000)
 		Delete(bgc, 13000, 15000)
-		time.Sleep(5 * time.Second)
 		saveData(bgc, 800000, 1000000)
 		Get(bgc, 12000, 25000)
 		Get(bgc, 50000, 75000)
 		Delete(bgc, 100000, 120000)
-		time.Sleep(5 * time.Second)
 		Get(bgc, 110000, 130000)
 		runtime.GC()
-		fmt.Printf("With a map of strings, GC took: %s\\n", timeGC())
+		fmt.Printf("With a map of strings, GC took: %s\n", timeGC())
 	}
 }
