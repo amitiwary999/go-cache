@@ -69,7 +69,7 @@ func (e *expirationData[T]) removeExpiredItem(c cacheOp[T]) {
 	defer e.Mutex.Unlock()
 	bucket, ok := e.expirationBucket[removeBucketKey]
 	if ok {
-		for key, _ := range bucket {
+		for key := range bucket {
 			c.Del(key)
 		}
 	}

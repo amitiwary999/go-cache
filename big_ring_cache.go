@@ -8,9 +8,15 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/bits-and-blooms/bloom/v3"
 	xxhash "github.com/cespare/xxhash/v2"
+)
+
+var (
+	HomeDir  string = ""
+	FileName string = "big-cache-ring-data.txt"
 )
 
 type bigCacheRing struct {
@@ -18,27 +24,44 @@ type bigCacheRing struct {
 	offsetMap   map[uint64]int64
 	cacheRing   *cacheRing[string]
 	bloomFilter *bloom.BloomFilter
+	deleteInfo  *deleteInfo
 }
 
-func NewBigCacheRing(bufferSize int32) (*bigCacheRing, error) {
-	homeDir, err := os.UserHomeDir()
+type TickerInfo struct {
+	Hour     int
+	Min      int
+	Sec      int
+	Interval time.Duration
+}
+
+type CleanFileInterface interface {
+	updateCleanedFile(map[uint64]int64, []string)
+}
+
+func NewBigCacheRing(bufferSize int32, ti *TickerInfo) (*bigCacheRing, error) {
+	var err error = nil
+	HomeDir, err = os.UserHomeDir()
 	if err != nil {
 		return nil, errors.New("failed to create file")
 	}
-	fileName := fmt.Sprintf("%v/%v", homeDir, "big-cache-ring-data.txt")
-	file, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+	filePath := fmt.Sprintf("%v/%v", HomeDir, FileName)
+	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return nil, err
 	}
 	cacheRing := NewCacheRing[string](bufferSize)
 	offsetMap := make(map[uint64]int64)
 	filter := bloom.NewWithEstimates(1000000, 0.01)
-	return &bigCacheRing{
+	di := newDeleteInfo(ti)
+	bigch := &bigCacheRing{
 		file:        file,
 		offsetMap:   offsetMap,
 		cacheRing:   cacheRing,
 		bloomFilter: filter,
-	}, nil
+		deleteInfo:  di,
+	}
+	go di.process(bigch)
+	return bigch, nil
 }
 
 func (c *bigCacheRing) Save(key string, value string) error {
@@ -109,6 +132,7 @@ func (c *bigCacheRing) Delete(key string) {
 	keyInt := xxhash.Sum64(keyByte)
 	delete(c.cacheRing.data, keyInt)
 	delete(c.offsetMap, keyInt)
+	c.deleteInfo.add(key)
 }
 
 func (c *bigCacheRing) Size(cacheType int) int {
@@ -154,4 +178,28 @@ func (c *bigCacheRing) loadFileOffset(done chan int) {
 
 func (c *bigCacheRing) LoadFileOffset(done chan int) {
 	go c.loadFileOffset(done)
+}
+
+func (c *bigCacheRing) updateCleanedFile(offsetMap map[uint64]int64, keys []string) {
+	if len(keys) > 0 {
+		c.file.Close()
+		filePath := fmt.Sprintf("%v/%v", HomeDir, FileName)
+		file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+		if err != nil {
+			fmt.Printf("failed to open cleaned file %v \n", err)
+		}
+		c.file = file
+		c.offsetMap = offsetMap
+		c.bloomFilter.ClearAll()
+		for _, key := range keys {
+			c.bloomFilter.Add([]byte(key))
+		}
+	}
+}
+
+func (c *bigCacheRing) Clear() {
+	c.file.Close()
+	c.deleteInfo.clear()
+	c.bloomFilter.ClearAll()
+	c.offsetMap = make(map[uint64]int64)
 }

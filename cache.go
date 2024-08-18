@@ -44,6 +44,14 @@ func (c *Cache[T]) cleanUp() {
 	}
 }
 
+func (c *Cache[T]) Close() {
+	close(c.done)
+}
+
+func (c *Cache[T]) Reset() {
+	c.data.Reset()
+}
+
 func (c *Cache[T]) Set(key string, value T, ttl time.Duration) error {
 	expiration := time.Now().Add(ttl)
 	keyByte := []byte(key)
