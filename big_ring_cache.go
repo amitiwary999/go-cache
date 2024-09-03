@@ -173,6 +173,11 @@ func (c *bigCacheRing) loadFileOffset(done chan int) {
 		}
 		offset += int64(len(b))
 	}
+	tempFilePath = fmt.Sprintf("%v/%v", HomeDir, "big-cache-ring-data-temp.txt")
+	_, err := os.Stat(tempFilePath)
+	if err == nil {
+		os.Remove(tempFilePath)
+	}
 	done <- 1
 }
 
