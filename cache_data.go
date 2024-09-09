@@ -31,6 +31,7 @@ type CacheData[T any] struct {
 	lfuQueue       PriorityQueue
 	queuePosMap    map[uint64]int
 	expirationData *expirationData[T]
+	accessCount    uint64
 }
 
 type cacheOp[T any] interface {
@@ -142,6 +143,7 @@ func (c *CacheData[T]) addFreq(key uint64) {
 		c.itemsCh <- c.getCountBatch
 		c.getCountBatch = c.getCountBatch[:0]
 	}
+	c.accessCount += 1
 }
 
 func (c *CacheData[T]) removeExcessItem() {
@@ -179,6 +181,10 @@ func (c *CacheData[T]) process() {
 					pos := cacheheap.Push(&c.lfuQueue, item)
 					c.queuePosMap[k] = pos
 				}
+			}
+			if c.accessCount > 5*c.capacity {
+				c.Reset()
+				c.accessCount = 0
 			}
 			uniqueItems = nil
 		case <-c.done:
