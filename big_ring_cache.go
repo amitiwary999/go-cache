@@ -45,7 +45,7 @@ func NewBigCacheRing(bufferSize int32, ti *TickerInfo) (*bigCacheRing, error) {
 		return nil, errors.New("failed to create file")
 	}
 	filePath := fmt.Sprintf("%v/%v", HomeDir, FileName)
-	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,9 @@ func (c *bigCacheRing) Save(key string, value string) error {
 		fmt.Printf("big cache error seeking the file")
 		return err
 	}
-	fileData := key + " " + value + "\n"
+	/** we save key in format {0 or 1}#key. like 1#mykey1 or 0#mykey2. 0# means this key is deleted*/
+	fileSaveKey := "1#" + key
+	fileData := fileSaveKey + " " + value + "\n"
 	_, saveErr := c.file.WriteString(fileData)
 	if saveErr != nil {
 		return saveErr
@@ -94,7 +96,7 @@ func (c *bigCacheRing) Get(key string) (string, error) {
 		}
 		offset, ok := c.offsetMap[keyInt]
 		if ok {
-			valueOffset := offset + int64(len(key)) + 1
+			valueOffset := offset + int64(len(key)) + 2 + 1
 			_, fileErr := c.file.Seek(valueOffset, 0)
 			if fileErr != nil {
 				return "", fileErr
@@ -130,6 +132,13 @@ func (c *bigCacheRing) Get(key string) (string, error) {
 func (c *bigCacheRing) Delete(key string) {
 	keyByte := []byte(key)
 	keyInt := xxhash.Sum64(keyByte)
+	offset, ok := c.offsetMap[keyInt]
+	if ok {
+		_, err := c.file.WriteAt([]byte("0"), offset)
+		if err != nil {
+			fmt.Printf("failed to update the delete bit %v \n", err)
+		}
+	}
 	delete(c.cacheRing.data, keyInt)
 	delete(c.offsetMap, keyInt)
 	c.deleteInfo.add(key)
@@ -166,10 +175,14 @@ func (c *bigCacheRing) loadFileOffset(done chan int) {
 		b := scanner.Bytes()
 		splitStrings := strings.Split(string(b), " ")
 		if len(splitStrings) > 0 {
-			keyString := splitStrings[0]
-			keyInt := xxhash.Sum64([]byte(keyString))
-			c.offsetMap[keyInt] = offset
-			c.bloomFilter.Add([]byte(keyString))
+			keyDelFlagString := splitStrings[0]
+			keyDSplits := strings.Split(keyDelFlagString, "#")
+			if len(keyDSplits) > 1 {
+				keyString := keyDSplits[1]
+				keyInt := xxhash.Sum64([]byte(keyString))
+				c.offsetMap[keyInt] = offset
+				c.bloomFilter.Add([]byte(keyString))
+			}
 		}
 		offset += int64(len(b))
 	}
