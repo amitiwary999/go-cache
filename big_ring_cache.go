@@ -141,7 +141,6 @@ func (c *bigCacheRing) Delete(key string) {
 	}
 	delete(c.cacheRing.data, keyInt)
 	delete(c.offsetMap, keyInt)
-	c.deleteInfo.add(key)
 }
 
 func (c *bigCacheRing) Size(cacheType int) int {
@@ -178,14 +177,10 @@ func (c *bigCacheRing) loadFileOffset(done chan int) {
 			keyDelFlagString := splitStrings[0]
 			keyDSplits := strings.Split(keyDelFlagString, "#")
 			if len(keyDSplits) > 1 {
-				deleteFlagString := keyDSplits[0]
 				keyString := keyDSplits[1]
 				keyInt := xxhash.Sum64([]byte(keyString))
 				c.offsetMap[keyInt] = offset
 				c.bloomFilter.Add([]byte(keyString))
-				if deleteFlagString == "0" {
-					c.deleteInfo.add(keyString)
-				}
 			}
 		}
 		offset += int64(len(b))
