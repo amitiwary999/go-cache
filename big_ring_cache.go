@@ -96,6 +96,8 @@ func (c *bigCacheRing) Get(key string) (string, error) {
 		}
 		offset, ok := c.offsetMap[keyInt]
 		if ok {
+			/** we save the key as {deleteFlag}#{key} like 1#my_key. we add 2 for the {deleteFlag}# and 1 for the empty space between
+			key and value. */
 			valueOffset := offset + int64(len(key)) + 2 + 1
 			_, fileErr := c.file.Seek(valueOffset, 0)
 			if fileErr != nil {
@@ -134,6 +136,7 @@ func (c *bigCacheRing) Delete(key string) {
 	keyInt := xxhash.Sum64(keyByte)
 	offset, ok := c.offsetMap[keyInt]
 	if ok {
+		/** set the delete bit to 0. 0#{key} would be the key i.e 1#{key} is updated to 0#{key}*/
 		_, err := c.file.WriteAt([]byte("0"), offset)
 		if err != nil {
 			fmt.Printf("failed to update the delete bit %v \n", err)
