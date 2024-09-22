@@ -6,6 +6,43 @@ import (
 	"time"
 )
 
+func TestBigRingCacheDelete(t *testing.T) {
+	ti := &TickerInfo{
+		Interval: 55 * time.Second,
+		Hour:     13,
+		Min:      56,
+		Sec:      00,
+	}
+	bch, initErr := NewBigCacheRing(5, ti)
+	if initErr != nil {
+		t.Errorf("failed to init cache %v \n", initErr)
+	}
+	doneCh := make(chan int)
+
+	saveData(bch, 1, 500000)
+
+	bch.Delete(fmt.Sprintf("%v-%v", keyPref, 3))
+	_, err3 := bch.Get(fmt.Sprintf("%v-%v", keyPref, 3))
+	if err3 == nil || err3.Error() != "key not found" {
+		t.Fatalf("key3 is deleted so no value should be present")
+	}
+	time.Sleep(2999 * time.Millisecond)
+	saveData(bch, 500010, 2000000)
+	/** clean data and init. This to test that the deleted keys are removed from file. */
+	bch.Clear()
+	bch, initErr = NewBigCacheRing(5, ti)
+	if initErr != nil {
+		t.Errorf("failed to init cache %v \n", initErr)
+	}
+	bch.LoadFileOffset(doneCh)
+	<-doneCh
+	_, err3 = bch.Get(fmt.Sprintf("%v-%v", keyPref, 3))
+	if err3 == nil || err3.Error() != "key not found" {
+		t.Fatalf("key3 is deleted so no value should be present")
+	}
+
+}
+
 func TestBigRingCache(t *testing.T) {
 	ti := &TickerInfo{
 		Interval: 15 * time.Second,
@@ -32,7 +69,7 @@ func TestBigRingCache(t *testing.T) {
 		}
 	}
 
-	saveData(bch, 1, 500000)
+	saveData(bch, 1, 500)
 
 	value1, err := bch.Get(fmt.Sprintf("%v-%v", keyPref, 1))
 	if err != nil {
@@ -59,18 +96,4 @@ func TestBigRingCache(t *testing.T) {
 	if err3 == nil || err3.Error() != "key not found" {
 		t.Fatalf("key3 is deleted so no value should be present")
 	}
-	time.Sleep(4999 * time.Millisecond)
-	saveData(bch, 500010, 900000)
-	bch.Clear()
-	bch, initErr = NewBigCacheRing(5, ti)
-	if initErr != nil {
-		t.Errorf("failed to init cache %v \n", initErr)
-	}
-	bch.LoadFileOffset(doneCh)
-	<-doneCh
-	_, err3 = bch.Get(fmt.Sprintf("%v-%v", keyPref, 3))
-	if err3 == nil || err3.Error() != "key not found" {
-		t.Fatalf("key3 is deleted so no value should be present")
-	}
-
 }
