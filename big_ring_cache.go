@@ -64,7 +64,7 @@ func NewBigCacheRing(bufferSize int32, ti *TickerInfo) (*bigCacheRing, error) {
 	return bigch, nil
 }
 
-func (c *bigCacheRing) Save(key string, value string) error {
+func (c *bigCacheRing) Set(key string, value string) error {
 	keyByte := []byte(key)
 	keyInt := xxhash.Sum64(keyByte)
 	offset, err := c.file.Seek(0, io.SeekEnd)

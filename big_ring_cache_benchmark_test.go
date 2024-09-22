@@ -20,7 +20,7 @@ func saveData(bgr *bigCacheRing, start, end int) {
 	for i := start; i < end; i++ {
 		key := fmt.Sprintf("%v-%v", keyPref, i)
 		value := fmt.Sprintf("%v-%v", valuePref, i)
-		bgr.Save(key, value)
+		bgr.Set(key, value)
 	}
 }
 

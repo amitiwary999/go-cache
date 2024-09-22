@@ -2,23 +2,61 @@
 Save data on machine and fetch fast. Local cache.
 Sometimes we need to save the data in the machine where we want to use that. This makes the fetching data fast. We may want that the data persist even when machine restart or it should not persist.This library has both option.
 
-Library support two type .
+Library support two type of cache with the clock cache replacement .
 1. All the data in the memory
 2. Save all data in file in disk and load some data in memory for fast access
 
 Get the library:<br> go get -u github.com/amitiwary999/go-cache<br>
 Import library:<br> 
-import (cache "github.com/amitiwary999/go-cache")<br>
+```
+import (cache "github.com/amitiwary999/go-cache")
+```
+<br>
 
 init first type of cache<br>
-cacheRing := cach.NewCacheRing[type](sizeOfCache)<br>
+```
+cacheRing := cach.NewCacheRing[type](sizeOfCache)
+```
+<br>
 type is the data type of the key of cache. Like int16, int32, string etc.<br>
 sizeOfCache is the number of keys of cache.<br>
+<br>
+init second type of cahce
+<br>
 
-init second type of cahce<br>
+```
 bigCache := cache.NewBigCacheRing(sizeOfCache)
+```
 sizeOfCache is the number of keys of cache present in memeory(this is not the limit for the keys we save in file).<br>
+<br>
 
+### Save data 
+```
+cacheRing.Set(key,value)
+or
+bigCache.Set(key,value)
+```
+It returns error if failed to save data.
+
+<br>
+
+### Get Data
+
+```
+cacheRing.Get(key)
+or
+bigCache.Get(key)
+```
+It returns data and error. 
+<br>
+
+### To remove the key
+```
+cacheRing.Delete(key)
+or
+bigCache.Delete(key)
+```
+<br>
 ## Benchmark:
 
 JLMP250:go-cache amitt$ go test -timeout 30m  -bench=.  -benchmem -memprofile memprofile.out -cpuprofile profile.out  -benchtime=20s -count=5
