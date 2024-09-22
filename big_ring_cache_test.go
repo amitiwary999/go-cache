@@ -8,10 +8,10 @@ import (
 
 func TestBigRingCache(t *testing.T) {
 	ti := &TickerInfo{
-		Interval: 5 * time.Second,
-		Hour:     23,
+		Interval: 15 * time.Second,
+		Hour:     12,
 		Min:      17,
-		Sec:      5,
+		Sec:      15,
 	}
 	bch, initErr := NewBigCacheRing(5, ti)
 	if initErr != nil {
@@ -32,7 +32,7 @@ func TestBigRingCache(t *testing.T) {
 		}
 	}
 
-	saveData(bch, 1, 100000)
+	saveData(bch, 1, 500000)
 
 	value1, err := bch.Get(fmt.Sprintf("%v-%v", keyPref, 1))
 	if err != nil {
@@ -59,9 +59,8 @@ func TestBigRingCache(t *testing.T) {
 	if err3 == nil || err3.Error() != "key not found" {
 		t.Fatalf("key3 is deleted so no value should be present")
 	}
-	saveData(bch, 200000, 200010)
-	time.Sleep(5 * time.Second)
-	saveData(bch, 200010, 900000)
+	time.Sleep(4999 * time.Millisecond)
+	saveData(bch, 500010, 900000)
 	bch.Clear()
 	bch, initErr = NewBigCacheRing(5, ti)
 	if initErr != nil {
