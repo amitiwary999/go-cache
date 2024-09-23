@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	bucketNo     = 1
 	tempFilePath = ""
 	mainFilePath = ""
 )
@@ -23,6 +24,7 @@ type deleteInfo struct {
 	deleteInterval time.Duration
 	deleteMin      int
 	deleteSec      int
+	buckets        map[int]bucket
 	t              *time.Timer
 }
 
@@ -41,11 +43,27 @@ func newDeleteInfo(ti *TickerInfo) *deleteInfo {
 		deleteInterval: ti.Interval,
 		deleteMin:      ti.Min,
 		deleteSec:      ti.Sec,
+		buckets:        make(map[int]bucket),
 		t:              time.NewTimer(getTickerTime(ti.Interval, ti.Hour, ti.Min, ti.Sec)),
 	}
 	tempFilePath = fmt.Sprintf("%v/%v", HomeDir, "big-cache-ring-data-temp.txt")
 	mainFilePath = fmt.Sprintf("%v/%v", HomeDir, FileName)
 	return di
+}
+
+/*
+* this use to keep the deleted key record while we do the clean up of the file.
+It might possible that while we do the cleanup, there is some key which get deleted but because
+that key was already processed in cleanup, with the deleteFlag as value 1, it will not be removed from the file.
+So in next cleanup cycle it can be fetched from the bucket map
+*/
+func (d *deleteInfo) add(key string) {
+	b, ok := d.buckets[bucketNo]
+	if !ok {
+		b = make(bucket)
+		d.buckets[bucketNo] = b
+	}
+	b[key] = byte(1)
 }
 
 func createTempFile(fileName string) (*os.File, error) {
@@ -74,6 +92,12 @@ func (d *deleteInfo) cleanFile() (map[uint64]int64, []string) {
 		fmt.Printf("temp file create error %v \n", tmpFileErr)
 		return nil, nil
 	}
+	delBucketNo := bucketNo
+	bucketNo += 1
+	bucket, ok := d.buckets[delBucketNo]
+	if !ok {
+		bucket = nil
+	}
 	scanner := bufio.NewScanner(file)
 	scanner.Split(splitFunction)
 	for scanner.Scan() {
@@ -84,7 +108,14 @@ func (d *deleteInfo) cleanFile() (map[uint64]int64, []string) {
 		if len(keyDSplits) > 1 {
 			deleteFlagString := keyDSplits[0]
 			keyString := keyDSplits[1]
-			if deleteFlagString == "1" {
+			prevDeleteSkip := false
+			if bucket != nil {
+				_, ok := bucket[keyString]
+				if ok {
+					prevDeleteSkip = true
+				}
+			}
+			if deleteFlagString == "1" || prevDeleteSkip {
 				offset, offsetErr := tmpFile.Seek(0, io.SeekEnd)
 				if offsetErr != nil {
 					return nil, nil
@@ -94,6 +125,7 @@ func (d *deleteInfo) cleanFile() (map[uint64]int64, []string) {
 				offsetMap[keyInt] = offset
 				keys = append(keys, keyString)
 			}
+			d.add(keyString)
 		}
 	}
 
@@ -117,6 +149,7 @@ func (d *deleteInfo) process(intrf CleanFileInterface) {
 				intrf.updateCleanedFile(offsetMap, keys)
 			}
 		}
+		delete(d.buckets, bucketNo-1)
 		d.tempFile.Close()
 		d.updateTicker()
 	}
