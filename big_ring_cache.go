@@ -212,7 +212,9 @@ func (c *bigCacheRing) updateCleanedFile(offsetMap map[uint64]int64, keys []stri
 		c.offsetMap = offsetMap
 		c.bloomFilter.Clear()
 		for _, key := range keys {
-			c.bloomFilter.Add([]byte(key))
+			keyByte := []byte(key)
+			keyInt := xxhash.Sum64(keyByte)
+			c.bloomFilter.Add(keyInt)
 		}
 	}
 }
