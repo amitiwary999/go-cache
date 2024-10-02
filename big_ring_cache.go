@@ -204,7 +204,7 @@ func (c *bigCacheRing) updateCleanedFile(offsetMap map[uint64]int64, keys []stri
 	if len(keys) > 0 {
 		c.file.Close()
 		filePath := fmt.Sprintf("%v/%v", HomeDir, FileName)
-		file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+		file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0644)
 		if err != nil {
 			fmt.Printf("failed to open cleaned file %v \n", err)
 		}
