@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bits-and-blooms/bloom/v3"
+	bbloom "github.com/amitiwary999/go-cache/internal/bloom"
 	xxhash "github.com/cespare/xxhash/v2"
 )
 
@@ -23,7 +23,7 @@ type bigCacheRing struct {
 	file        *os.File
 	offsetMap   map[uint64]int64
 	cacheRing   *cacheRing[string]
-	bloomFilter *bloom.BloomFilter
+	bloomFilter *bbloom.Bloom
 	deleteInfo  *deleteInfo
 }
 
@@ -51,7 +51,7 @@ func NewBigCacheRing(bufferSize int32, ti *TickerInfo) (*bigCacheRing, error) {
 	}
 	cacheRing := NewCacheRing[string](bufferSize)
 	offsetMap := make(map[uint64]int64)
-	filter := bloom.NewWithEstimates(1000000, 0.01)
+	filter := bbloom.NewBloomFilter(1000000, 0.01)
 	di := newDeleteInfo(ti)
 	bigch := &bigCacheRing{
 		file:        file,
@@ -80,7 +80,7 @@ func (c *bigCacheRing) Set(key string, value string) error {
 		return saveErr
 	}
 	c.offsetMap[keyInt] = offset
-	c.bloomFilter.Add([]byte(key))
+	c.bloomFilter.Add(keyInt)
 	return nil
 }
 
@@ -91,7 +91,7 @@ func (c *bigCacheRing) Get(key string) (string, error) {
 	if fetchErr == nil {
 		return itemValue, nil
 	} else {
-		if !c.bloomFilter.Test([]byte(key)) {
+		if !c.bloomFilter.Has(keyInt) {
 			return "", errors.New("key not found")
 		}
 		offset, ok := c.offsetMap[keyInt]
@@ -183,7 +183,7 @@ func (c *bigCacheRing) loadFileOffset(done chan int) {
 				keyString := keyDSplits[1]
 				keyInt := xxhash.Sum64([]byte(keyString))
 				c.offsetMap[keyInt] = offset
-				c.bloomFilter.Add([]byte(keyString))
+				c.bloomFilter.Add(keyInt)
 			}
 		}
 		offset += int64(len(b))
@@ -210,7 +210,7 @@ func (c *bigCacheRing) updateCleanedFile(offsetMap map[uint64]int64, keys []stri
 		}
 		c.file = file
 		c.offsetMap = offsetMap
-		c.bloomFilter.ClearAll()
+		c.bloomFilter.Clear()
 		for _, key := range keys {
 			c.bloomFilter.Add([]byte(key))
 		}
@@ -220,6 +220,6 @@ func (c *bigCacheRing) updateCleanedFile(offsetMap map[uint64]int64, keys []stri
 func (c *bigCacheRing) Clear() {
 	c.file.Close()
 	c.deleteInfo.clear()
-	c.bloomFilter.ClearAll()
+	c.bloomFilter.Clear()
 	c.offsetMap = make(map[uint64]int64)
 }
