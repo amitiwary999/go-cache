@@ -12,9 +12,10 @@ import (
 )
 
 var (
-	bucketNo     = 1
-	tempFilePath = ""
-	mainFilePath = ""
+	bucketNo      = 1
+	tempFilePath  = ""
+	mainFilePath  = ""
+	oldDeleteFile *os.File
 )
 
 type bucket map[string]byte
@@ -38,6 +39,12 @@ func getTickerTime(dInt time.Duration, dHour int, dMin int, dSec int) time.Durat
 	return time.Until(nextTick)
 }
 
+func createDeleteFile() (*os.File, error) {
+	deleteFileName := fmt.Sprintf("%v-%v.txt", DeleteKeyFilePrefix, time.Now().UnixMilli())
+	deleteFilePath := fmt.Sprintf("%v/%v/%v", HomeDir, DeleteKeyFileDirectory, deleteFileName)
+	return os.OpenFile(deleteFilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+}
+
 func newDeleteInfo(ti *TickerInfo) (*deleteInfo, error) {
 	di := &deleteInfo{
 		deleteHour:     ti.Hour,
@@ -49,9 +56,7 @@ func newDeleteInfo(ti *TickerInfo) (*deleteInfo, error) {
 	}
 	tempFilePath = fmt.Sprintf("%v/%v", HomeDir, "big-cache-ring-data-temp.txt")
 	mainFilePath = fmt.Sprintf("%v/%v", HomeDir, FileName)
-	deleteFileName := fmt.Sprintf("%v-%v.txt", DeleteKeyFilePrefix, time.Now().UnixMilli())
-	deleteFilePath := fmt.Sprintf("%v/%v/%v", HomeDir, DeleteKeyFileDirectory, deleteFileName)
-	deleteFile, err := os.OpenFile(deleteFilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+	deleteFile, err := createDeleteFile()
 	di.deleteKeyFile = deleteFile
 	return di, err
 }
@@ -110,53 +115,47 @@ func (d *deleteInfo) updateTicker() {
 func (d *deleteInfo) cleanFile() (map[uint64]int64, []string) {
 	offsetMap := make(map[uint64]int64)
 	keys := make([]string, 10)
-	file, fileErr := mainFile(mainFilePath)
-	if fileErr != nil {
-		fmt.Printf("main file create error %v \n", fileErr)
-		return nil, nil
-	}
-	tmpFile, tmpFileErr := createTempFile(tempFilePath)
-	d.tempFile = tmpFile
-	if tmpFileErr != nil {
-		fmt.Printf("temp file create error %v \n", tmpFileErr)
-		return nil, nil
-	}
+	oldDeleteFile = d.deleteKeyFile
 	delBucketNo := bucketNo
 	bucketNo += 1
 	bucket, ok := d.buckets[delBucketNo]
-	if !ok {
-		bucket = nil
+	deleteKeyNewFile, deleteKeyNewFileErr := createDeleteFile()
+	if deleteKeyNewFileErr == nil {
+		d.deleteKeyFile = deleteKeyNewFile
 	}
-	scanner := bufio.NewScanner(file)
-	scanner.Split(splitFunction)
-	for scanner.Scan() {
-		b := scanner.Bytes()
-		splitStrings := strings.Split(string(b), " ")
-		keyDelFlagString := splitStrings[0]
-		keyDSplits := strings.Split(keyDelFlagString, "#")
-		if len(keyDSplits) > 1 {
-			deleteFlagString := keyDSplits[0]
-			keyString := keyDSplits[1]
-			prevDeleteSkip := false
-			if bucket != nil {
+	if ok {
+		file, fileErr := mainFile(mainFilePath)
+		if fileErr != nil {
+			fmt.Printf("main file create error %v \n", fileErr)
+			return nil, nil
+		}
+		tmpFile, tmpFileErr := createTempFile(tempFilePath)
+		d.tempFile = tmpFile
+		if tmpFileErr != nil {
+			fmt.Printf("temp file create error %v \n", tmpFileErr)
+			return nil, nil
+		}
+		scanner := bufio.NewScanner(file)
+		scanner.Split(splitFunction)
+		for scanner.Scan() {
+			b := scanner.Bytes()
+			splitStrings := strings.Split(string(b), " ")
+			if len(splitStrings) > 0 {
+				keyString := splitStrings[0]
 				_, ok := bucket[keyString]
-				if ok {
-					prevDeleteSkip = true
+				if !ok {
+					offset, offsetErr := tmpFile.Seek(0, io.SeekEnd)
+					if offsetErr != nil {
+						return nil, nil
+					}
+					keyInt := xxhash.Sum64([]byte(keyString))
+					tmpFile.WriteString(string(b))
+					offsetMap[keyInt] = offset
+					keys = append(keys, keyString)
 				}
-			}
-			if deleteFlagString == "1" || prevDeleteSkip {
-				offset, offsetErr := tmpFile.Seek(0, io.SeekEnd)
-				if offsetErr != nil {
-					return nil, nil
-				}
-				keyInt := xxhash.Sum64([]byte(keyString))
-				tmpFile.WriteString(string(b))
-				offsetMap[keyInt] = offset
-				keys = append(keys, keyString)
 			}
 		}
 	}
-
 	return offsetMap, keys
 }
 
@@ -179,6 +178,14 @@ func (d *deleteInfo) process(intrf CleanFileInterface) {
 		}
 		delete(d.buckets, bucketNo-1)
 		d.tempFile.Close()
+		oldDeleteFile.Close()
+		delDir := fmt.Sprintf("%v/%v", HomeDir, DeleteKeyFileDirectory)
+		files, err := os.ReadDir(delDir)
+		if err == nil {
+			for i := 0; i < len(files)-1; i++ {
+				os.Remove(files[i].Name())
+			}
+		}
 		d.updateTicker()
 	}
 }
