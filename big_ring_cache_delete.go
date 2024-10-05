@@ -69,6 +69,10 @@ func (d *deleteInfo) add(key string) {
 		d.buckets[bucketNo] = b
 	}
 	b[key] = byte(1)
+	_, seekErr := d.deleteKeyFile.Seek(0, io.SeekEnd)
+	if seekErr == nil {
+		d.deleteKeyFile.WriteString(key)
+	}
 }
 
 func createTempFile(fileName string) (*os.File, error) {
@@ -130,7 +134,6 @@ func (d *deleteInfo) cleanFile() (map[uint64]int64, []string) {
 				offsetMap[keyInt] = offset
 				keys = append(keys, keyString)
 			}
-			d.add(keyString)
 		}
 	}
 

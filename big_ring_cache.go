@@ -154,6 +154,7 @@ func (c *bigCacheRing) Delete(key string) {
 	}
 	delete(c.cacheRing.data, keyInt)
 	delete(c.offsetMap, keyInt)
+	c.deleteInfo.add(key)
 }
 
 func (c *bigCacheRing) Size(cacheType int) int {
