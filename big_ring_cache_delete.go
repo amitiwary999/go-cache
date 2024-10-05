@@ -26,6 +26,7 @@ type deleteInfo struct {
 	deleteSec      int
 	buckets        map[int]bucket
 	t              *time.Timer
+	deleteKeyFile  *os.File
 }
 
 func getTickerTime(dInt time.Duration, dHour int, dMin int, dSec int) time.Duration {
@@ -37,7 +38,7 @@ func getTickerTime(dInt time.Duration, dHour int, dMin int, dSec int) time.Durat
 	return time.Until(nextTick)
 }
 
-func newDeleteInfo(ti *TickerInfo) *deleteInfo {
+func newDeleteInfo(ti *TickerInfo) (*deleteInfo, error) {
 	di := &deleteInfo{
 		deleteHour:     ti.Hour,
 		deleteInterval: ti.Interval,
@@ -48,7 +49,11 @@ func newDeleteInfo(ti *TickerInfo) *deleteInfo {
 	}
 	tempFilePath = fmt.Sprintf("%v/%v", HomeDir, "big-cache-ring-data-temp.txt")
 	mainFilePath = fmt.Sprintf("%v/%v", HomeDir, FileName)
-	return di
+	deleteFileName := fmt.Sprintf("%v-%v.txt", DeleteKeyFilePrefix, time.Now().UnixMilli())
+	deleteFilePath := fmt.Sprintf("%v/%v/%v", HomeDir, DeleteKeyFileDirectory, deleteFileName)
+	deleteFile, err := os.OpenFile(deleteFilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+	di.deleteKeyFile = deleteFile
+	return di, err
 }
 
 /*
