@@ -56,12 +56,31 @@ func newDeleteInfo(ti *TickerInfo) (*deleteInfo, error) {
 	return di, err
 }
 
-/*
-* this use to keep the deleted key record while we do the clean up of the file.
-It might possible that while we do the cleanup, there is some key which get deleted but because
-that key was already processed in cleanup, with the deleteFlag as value 1, it will not be removed from the file.
-So in next cleanup cycle it can be fetched from the bucket map
-*/
+func (d *deleteInfo) loadDeleteKeys() {
+	b, ok := d.buckets[bucketNo]
+	if !ok {
+		b = make(bucket)
+		d.buckets[bucketNo] = b
+	}
+	delDir := fmt.Sprintf("%v/%v", HomeDir, DeleteKeyFileDirectory)
+	files, err := os.ReadDir(delDir)
+	if err == nil && len(files) > 1 {
+		deleteFileName := files[1]
+		deleteFilePath := fmt.Sprintf("%v/%v", delDir, deleteFileName)
+		deleteOldFile, delErr := os.OpenFile(deleteFilePath, os.O_RDONLY, 0644)
+		if delErr != nil {
+			return
+		}
+		scanner := bufio.NewScanner(deleteOldFile)
+		scanner.Split(splitFunction)
+		for scanner.Scan() {
+			byt := scanner.Bytes()
+			key := string(byt)
+			b[key] = byte(1)
+		}
+	}
+}
+
 func (d *deleteInfo) add(key string) {
 	b, ok := d.buckets[bucketNo]
 	if !ok {
@@ -71,7 +90,8 @@ func (d *deleteInfo) add(key string) {
 	b[key] = byte(1)
 	_, seekErr := d.deleteKeyFile.Seek(0, io.SeekEnd)
 	if seekErr == nil {
-		d.deleteKeyFile.WriteString(key)
+		deleteFileKey := fmt.Sprintf("%v\n", key)
+		d.deleteKeyFile.WriteString(deleteFileKey)
 	}
 }
 

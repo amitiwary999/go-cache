@@ -84,7 +84,7 @@ func (c *bigCacheRing) Set(key string, value string) error {
 	}
 	/** we save key in format {0 or 1}#key. like 1#mykey1 or 0#mykey2. 0# means this key is deleted*/
 	fileSaveKey := "1#" + key
-	fileData := fileSaveKey + " " + value + "\n"
+	fileData := fmt.Sprintf("%v %v\n", fileSaveKey, value)
 	_, saveErr := c.file.WriteString(fileData)
 	if saveErr != nil {
 		return saveErr
