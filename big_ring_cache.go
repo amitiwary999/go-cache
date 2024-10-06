@@ -15,8 +15,11 @@ import (
 )
 
 var (
-	HomeDir  string = ""
-	FileName string = "big-cache-ring-data.txt"
+	HomeDir                string = ""
+	FileName               string = "big-cache-ring-data.txt"
+	DeleteKeyFileDirectory string = "delete-key-dir"
+	DeleteKeyFilePrefix    string = "delete-key-file"
+	DeleteKeyFile          string = ""
 )
 
 type bigCacheRing struct {
@@ -45,14 +48,22 @@ func NewBigCacheRing(bufferSize int32, ti *TickerInfo) (*bigCacheRing, error) {
 		return nil, errors.New("failed to create file")
 	}
 	filePath := fmt.Sprintf("%v/%v", HomeDir, FileName)
-	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0644)
+	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		return nil, err
+	}
+	deleteFileDirErr := os.Mkdir(HomeDir+"/"+DeleteKeyFileDirectory, 0744)
+	if deleteFileDirErr != nil && !os.IsExist(deleteFileDirErr) {
+		return nil, errors.New("failed to create directory that contain delete key files")
 	}
 	cacheRing := NewCacheRing[string](bufferSize)
 	offsetMap := make(map[uint64]int64)
 	filter := bbloom.NewBloomFilter(1000000, 0.01)
-	di := newDeleteInfo(ti)
+	di, deleteFileInfoErr := newDeleteInfo(ti)
+	if deleteFileInfoErr != nil {
+		fmt.Printf("error in delete info initialization %v \n", deleteFileInfoErr)
+		return nil, errors.New("error is delete info initialization")
+	}
 	bigch := &bigCacheRing{
 		file:        file,
 		offsetMap:   offsetMap,
@@ -72,9 +83,7 @@ func (c *bigCacheRing) Set(key string, value string) error {
 		fmt.Printf("big cache error seeking the file")
 		return err
 	}
-	/** we save key in format {0 or 1}#key. like 1#mykey1 or 0#mykey2. 0# means this key is deleted*/
-	fileSaveKey := "1#" + key
-	fileData := fileSaveKey + " " + value + "\n"
+	fileData := key + " " + value + "\n"
 	_, saveErr := c.file.WriteString(fileData)
 	if saveErr != nil {
 		return saveErr
@@ -96,9 +105,7 @@ func (c *bigCacheRing) Get(key string) (string, error) {
 		}
 		offset, ok := c.offsetMap[keyInt]
 		if ok {
-			/** we save the key as {deleteFlag}#{key} like 1#my_key. we add 2 for the {deleteFlag}# and 1 for the empty space between
-			key and value. */
-			valueOffset := offset + int64(len(key)) + 2 + 1
+			valueOffset := offset + int64(len(key)) + 1
 			_, fileErr := c.file.Seek(valueOffset, 0)
 			if fileErr != nil {
 				return "", fileErr
@@ -129,21 +136,15 @@ func (c *bigCacheRing) Get(key string) (string, error) {
 			return "", errors.New("key not found")
 		}
 	}
+
 }
 
 func (c *bigCacheRing) Delete(key string) {
 	keyByte := []byte(key)
 	keyInt := xxhash.Sum64(keyByte)
-	offset, ok := c.offsetMap[keyInt]
-	if ok {
-		/** set the delete bit to 0. 0#{key} would be the key i.e 1#{key} is updated to 0#{key}*/
-		_, err := c.file.WriteAt([]byte("0"), offset)
-		if err != nil {
-			fmt.Printf("failed to update the delete bit %v \n", err)
-		}
-	}
 	delete(c.cacheRing.data, keyInt)
 	delete(c.offsetMap, keyInt)
+	c.deleteInfo.add(key)
 }
 
 func (c *bigCacheRing) Size(cacheType int) int {
@@ -193,6 +194,7 @@ func (c *bigCacheRing) loadFileOffset(done chan int) {
 	if err == nil {
 		os.Remove(tempFilePath)
 	}
+	c.deleteInfo.loadDeleteKeys()
 	done <- 1
 }
 
@@ -204,7 +206,7 @@ func (c *bigCacheRing) updateCleanedFile(offsetMap map[uint64]int64, keys []stri
 	if len(keys) > 0 {
 		c.file.Close()
 		filePath := fmt.Sprintf("%v/%v", HomeDir, FileName)
-		file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0644)
+		file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
 		if err != nil {
 			fmt.Printf("failed to open cleaned file %v \n", err)
 		}

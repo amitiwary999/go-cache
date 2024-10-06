@@ -35,6 +35,7 @@ func TestBigRingCacheDelete(t *testing.T) {
 		t.Errorf("failed to init cache %v \n", initErr)
 	}
 	bch.LoadFileOffset(doneCh)
+	bch.Delete(fmt.Sprintf("%v-%v", keyPref, 4))
 	<-doneCh
 	_, err3 = bch.Get(fmt.Sprintf("%v-%v", keyPref, 3))
 	if err3 == nil || err3.Error() != "key not found" {
