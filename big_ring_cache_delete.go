@@ -183,7 +183,8 @@ func (d *deleteInfo) process(intrf CleanFileInterface) {
 		files, err := os.ReadDir(delDir)
 		if err == nil {
 			for i := 0; i < len(files)-1; i++ {
-				os.Remove(files[i].Name())
+				delPath := fmt.Sprintf("%v/%v", delDir, files[i].Name())
+				os.Remove(delPath)
 			}
 		}
 		d.updateTicker()
