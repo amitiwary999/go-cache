@@ -17,7 +17,7 @@ import (
 var (
 	HomeDir                string = ""
 	FileName               string = "big-cache-ring-data.txt"
-	DeleteKeyFileDirectory string = "delete-key"
+	DeleteKeyFileDirectory string = "delete-key-dir"
 	DeleteKeyFilePrefix    string = "delete-key-file"
 	DeleteKeyFile          string = ""
 )
@@ -52,8 +52,8 @@ func NewBigCacheRing(bufferSize int32, ti *TickerInfo) (*bigCacheRing, error) {
 	if err != nil {
 		return nil, err
 	}
-	deleteFileDirErr := os.Mkdir(DeleteKeyFileDirectory, 0644)
-	if deleteFileDirErr != nil {
+	deleteFileDirErr := os.Mkdir(HomeDir+"/"+DeleteKeyFileDirectory, 0744)
+	if deleteFileDirErr != nil && !os.IsExist(deleteFileDirErr) {
 		return nil, errors.New("failed to create directory that contain delete key files")
 	}
 	cacheRing := NewCacheRing[string](bufferSize)
@@ -61,7 +61,8 @@ func NewBigCacheRing(bufferSize int32, ti *TickerInfo) (*bigCacheRing, error) {
 	filter := bbloom.NewBloomFilter(1000000, 0.01)
 	di, deleteFileInfoErr := newDeleteInfo(ti)
 	if deleteFileInfoErr != nil {
-		return nil, errors.New("error is delete info creation")
+		fmt.Printf("error in delete info initialization %v \n", deleteFileInfoErr)
+		return nil, errors.New("error is delete info initialization")
 	}
 	bigch := &bigCacheRing{
 		file:        file,
@@ -141,14 +142,6 @@ func (c *bigCacheRing) Get(key string) (string, error) {
 func (c *bigCacheRing) Delete(key string) {
 	keyByte := []byte(key)
 	keyInt := xxhash.Sum64(keyByte)
-	offset, ok := c.offsetMap[keyInt]
-	if ok {
-		/** set the delete bit to 0. 0#{key} would be the key i.e 1#{key} is updated to 0#{key}*/
-		_, err := c.file.WriteAt([]byte("0"), offset)
-		if err != nil {
-			fmt.Printf("failed to update the delete bit %v \n", err)
-		}
-	}
 	delete(c.cacheRing.data, keyInt)
 	delete(c.offsetMap, keyInt)
 	c.deleteInfo.add(key)
