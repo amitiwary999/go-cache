@@ -82,9 +82,7 @@ func (c *bigCacheRing) Set(key string, value string) error {
 		fmt.Printf("big cache error seeking the file")
 		return err
 	}
-	/** we save key in format {0 or 1}#key. like 1#mykey1 or 0#mykey2. 0# means this key is deleted*/
-	fileSaveKey := "1#" + key
-	fileData := fmt.Sprintf("%v %v\n", fileSaveKey, value)
+	fileData := key + " " + value + "\n"
 	_, saveErr := c.file.WriteString(fileData)
 	if saveErr != nil {
 		return saveErr
@@ -106,9 +104,7 @@ func (c *bigCacheRing) Get(key string) (string, error) {
 		}
 		offset, ok := c.offsetMap[keyInt]
 		if ok {
-			/** we save the key as {deleteFlag}#{key} like 1#my_key. we add 2 for the {deleteFlag}# and 1 for the empty space between
-			key and value. */
-			valueOffset := offset + int64(len(key)) + 2 + 1
+			valueOffset := offset + int64(len(key)) + 1
 			_, fileErr := c.file.Seek(valueOffset, 0)
 			if fileErr != nil {
 				return "", fileErr
@@ -139,6 +135,7 @@ func (c *bigCacheRing) Get(key string) (string, error) {
 			return "", errors.New("key not found")
 		}
 	}
+
 }
 
 func (c *bigCacheRing) Delete(key string) {
@@ -204,6 +201,7 @@ func (c *bigCacheRing) loadFileOffset(done chan int) {
 	if err == nil {
 		os.Remove(tempFilePath)
 	}
+	c.deleteInfo.loadDeleteKeys()
 	done <- 1
 }
 
