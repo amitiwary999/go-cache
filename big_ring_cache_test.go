@@ -7,11 +7,28 @@ import (
 )
 
 func TestBigRingCacheDelete(t *testing.T) {
+	currentTime := time.Now()
+	hour := currentTime.Hour()
+	minute := currentTime.Minute()
+	second := currentTime.Second()
+	second = second + 3
+	if (second / 60) >= 1 {
+		second = second % 60
+		minute = minute + 1
+		if (minute / 60) >= 1 {
+			minute = minute % 60
+			hour = hour + 1
+			if (hour / 24) >= 1 {
+				hour = hour % 24
+			}
+		}
+	}
+
 	ti := &TickerInfo{
 		Interval: 55 * time.Second,
-		Hour:     13,
-		Min:      56,
-		Sec:      00,
+		Hour:     hour,
+		Min:      minute,
+		Sec:      second,
 	}
 	bch, initErr := NewBigCacheRing(5, ti)
 	if initErr != nil {
@@ -45,11 +62,28 @@ func TestBigRingCacheDelete(t *testing.T) {
 }
 
 func TestBigRingCache(t *testing.T) {
+	currentTime := time.Now()
+	hour := currentTime.Hour()
+	minute := currentTime.Minute()
+	second := currentTime.Second()
+	second = second + 3
+	if (second / 60) >= 1 {
+		second = second % 60
+		minute = minute + 1
+		if (minute / 60) >= 1 {
+			minute = minute % 60
+			hour = hour + 1
+			if (hour / 24) >= 1 {
+				hour = hour % 24
+			}
+		}
+	}
+
 	ti := &TickerInfo{
 		Interval: 15 * time.Second,
-		Hour:     12,
-		Min:      17,
-		Sec:      15,
+		Hour:     hour,
+		Min:      minute,
+		Sec:      second,
 	}
 	bch, initErr := NewBigCacheRing(5, ti)
 	if initErr != nil {
